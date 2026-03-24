@@ -14,15 +14,15 @@ const stats = [
 const steps = [
   {
     title: 'Listen',
-    text: 'Lean previews, no clutter, and a room that stays readable while the track plays.',
+    text: 'Quick previews and a clean stage so the track stays in focus.',
   },
   {
     title: 'Guess',
-    text: 'Fast feedback for every player with a minimal lobby that makes state obvious.',
+    text: 'Fast room updates make it easy to keep up while the round is live.',
   },
   {
     title: 'Score',
-    text: 'Simple speed-based scoring with a quiet visual language and clear hierarchy.',
+    text: 'Simple scoring that rewards the right answer without extra noise.',
   },
 ];
 
@@ -53,30 +53,31 @@ export default function LandingPage() {
           </div>
           <div>
             <div className="text-[0.7rem] uppercase tracking-[0.42em] text-white/40">Songguessr</div>
-            <div className="text-sm text-white/65">Monochrome music duel</div>
+              <div className="text-sm text-white/65">Fast music guessing rooms</div>
           </div>
         </div>
 
-        <Chip variant="soft" className="border border-emerald-400/20 bg-emerald-400/10 text-emerald-300">
-          Spotify hint
-        </Chip>
+        <div className="flex items-center gap-2 text-xs uppercase tracking-[0.35em] text-white/55">
+          <span className="h-2.5 w-2.5 rounded-full bg-emerald-400 shadow-[0_0_18px_rgba(74,222,128,0.45)]" />
+          Spotify sync
+        </div>
       </header>
 
       <section className="grid flex-1 gap-8 py-10 lg:grid-cols-[1.05fr_0.95fr] lg:items-center">
         <div className="space-y-8">
           <div className="space-y-5">
             <Chip variant="soft" className="border border-emerald-400/20 bg-emerald-400/10 text-emerald-300">
-              Real-time guessing room
+              Private multiplayer room
             </Chip>
             <div className="space-y-4">
               <h1 className="max-w-4xl text-4xl font-semibold tracking-[-0.07em] text-white sm:text-5xl lg:text-7xl">
-                Guess songs.
+                Guess songs together.
                 <br />
-                Keep the room honest.
+                Keep the round moving.
               </h1>
               <p className="max-w-2xl text-sm leading-7 text-white/62 sm:text-base lg:text-lg">
-                Songguessr turns Spotify listening history into a stripped-back social game.
-                No loud gradients, no visual noise, just a sharp room code and fast rounds.
+                Songguessr turns Spotify listening data into fast, private rounds with a clean room layout,
+                clear controls, and just enough visual polish to stay memorable.
               </p>
             </div>
           </div>
@@ -105,12 +106,12 @@ export default function LandingPage() {
         <Card className="border border-white/10 bg-white/[0.04] shadow-[0_20px_80px_rgba(0,0,0,0.38)]">
           <Card.Header className="flex flex-col items-start gap-3 px-6 pt-6">
             <Chip variant="secondary" className="bg-white/10 text-white/72">
-              Lobby preview
+              Room preview
             </Chip>
             <div>
-              <h2 className="text-2xl font-semibold tracking-[-0.05em] text-white">Minimal room flow</h2>
+              <h2 className="text-2xl font-semibold tracking-[-0.05em] text-white">A room that stays readable</h2>
               <p className="mt-1 text-sm text-white/55">
-                A cleaner lobby built for room state, not decorative noise.
+                Designed for fast starts, clear player state, and a calmer visual rhythm.
               </p>
             </div>
           </Card.Header>
@@ -135,14 +136,14 @@ export default function LandingPage() {
             <div className="grid gap-3 sm:grid-cols-2">
               <Card className="border border-white/10 bg-white/[0.03] shadow-none">
                 <Card.Content className="p-4">
-                  <div className="text-xs uppercase tracking-[0.3em] text-white/40">Look</div>
-                  <div className="mt-1 text-sm text-white/70">Monochrome, high contrast, no excess color.</div>
+                  <div className="text-xs uppercase tracking-[0.3em] text-white/40">Layout</div>
+                  <div className="mt-1 text-sm text-white/70">A quiet structure that keeps the room state easy to scan.</div>
                 </Card.Content>
               </Card>
               <Card className="border border-white/10 bg-white/[0.03] shadow-none">
                 <Card.Content className="p-4">
-                  <div className="text-xs uppercase tracking-[0.3em] text-white/40">Interaction</div>
-                  <div className="mt-1 text-sm text-white/70">Sharp controls with clear hover and focus states.</div>
+                  <div className="text-xs uppercase tracking-[0.3em] text-white/40">Controls</div>
+                  <div className="mt-1 text-sm text-white/70">Quick actions with immediate feedback for create and join.</div>
                 </Card.Content>
               </Card>
             </div>
