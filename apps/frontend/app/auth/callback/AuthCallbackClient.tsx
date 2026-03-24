@@ -18,12 +18,17 @@ export default function AuthCallbackClient({ nextPath, code }: AuthCallbackClien
 
   useEffect(() => {
     let cancelled = false;
-    console.log('[Auth Debug] AuthCallbackClient mounted', {
-      code,
-      nextPath,
-      hash: typeof window !== 'undefined' ? window.location.hash : null,
-      href: typeof window !== 'undefined' ? window.location.href : null,
-    });
+    
+    // Check if there's an error in the URL hash (from implicit flow)
+    const hash = typeof window !== 'undefined' ? window.location.hash : '';
+    if (hash.includes('error=')) {
+      const params = new URLSearchParams(hash.replace('#', '?'));
+      const errDesc = params.get('error_description') || 'Unknown OAuth Error';
+      console.error('[Auth Debug] OAuth Error in hash:', errDesc);
+      setMessage(`Spotify Sign-In Failed: ${errDesc.replace(/\+/g, ' ')}`);
+      setTimeout(() => router.replace('/'), 5000);
+      return;
+    }
 
     const finalizeAuth = async () => {
       // Prevent double execution in React Strict Mode
