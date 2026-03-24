@@ -1,0 +1,7 @@
+node_modules/
+apps/frontend/.next/
+apps/frontend/.vercel/
+apps/frontend/.env.local
+apps/backend/.env
+.DS_Store
+*.log
