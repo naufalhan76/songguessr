@@ -31,23 +31,57 @@ export default function LandingPage() {
   const router = useRouter();
   const [roomCode, setRoomCode] = useState('');
   const [userId, setUserId] = useState<string | null>(null);
+  const [userProfile, setUserProfile] = useState<{ display_name: string; avatar_url: string | null } | null>(null);
   const [isCreating, setIsCreating] = useState(false);
   const canJoin = roomCode.length === 6;
 
   useEffect(() => {
+    let cancelled = false;
+
     const loadUser = async () => {
       const { data: { session } } = await supabase.auth.getSession();
+      if (cancelled) return;
+
       if (session?.user) {
         setUserId(session.user.id);
+        const { data: profile } = await supabase
+          .from('users')
+          .select('display_name, avatar_url')
+          .eq('id', session.user.id)
+          .single();
+
+        if (profile && !cancelled) {
+          setUserProfile(profile as any);
+        }
       }
     };
     loadUser();
 
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
-      setUserId(session?.user?.id ?? null);
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (_event, session) => {
+      if (cancelled) return;
+      
+      const newUserId = session?.user?.id ?? null;
+      setUserId(newUserId);
+      
+      if (!newUserId) {
+        setUserProfile(null);
+      } else if (!userProfile) {
+        // Fetch profile if it somehow changed but wasn't loaded
+        const { data: profile } = await supabase
+          .from('users')
+          .select('display_name, avatar_url')
+          .eq('id', newUserId)
+          .single();
+        if (profile && !cancelled) {
+          setUserProfile(profile as any);
+        }
+      }
     });
 
-    return () => subscription.unsubscribe();
+    return () => {
+      cancelled = true;
+      subscription.unsubscribe();
+    };
   }, []);
 
   const handleCreateRoom = async () => {
@@ -85,6 +119,12 @@ export default function LandingPage() {
     router.push(`/room/${roomCode}`);
   };
 
+  const handleSignOut = async () => {
+    await supabase.auth.signOut();
+    setUserProfile(null);
+    setUserId(null);
+  };
+
   return (
     <main className="mx-auto flex min-h-screen w-full max-w-7xl flex-col px-4 py-5 sm:px-6 lg:px-8">
       <header className="flex flex-col gap-4 border-b border-white/10 pb-5 sm:flex-row sm:items-end sm:justify-between">
@@ -98,9 +138,29 @@ export default function LandingPage() {
           </div>
         </div>
 
-        <div className="flex items-center gap-2 text-xs uppercase tracking-[0.35em] text-white/55">
-          <span className={`h-2.5 w-2.5 rounded-full ${userId ? 'bg-emerald-400 shadow-[0_0_18px_rgba(74,222,128,0.45)]' : 'bg-amber-400 shadow-[0_0_18px_rgba(251,191,36,0.45)]'}`} />
-          {userId ? 'Spotify connected' : 'Not signed in'}
+        <div>
+          {userId ? (
+            <div className="flex flex-wrap items-center gap-3">
+              <div className="flex items-center gap-2 rounded-full border border-emerald-400/20 bg-emerald-400/10 py-1.5 pl-2 pr-4 text-emerald-300">
+                {userProfile?.avatar_url ? (
+                  <img src={userProfile.avatar_url} alt="" className="h-6 w-6 rounded-full" />
+                ) : (
+                  <div className="grid h-6 w-6 place-items-center rounded-full bg-emerald-400/20 text-[10px] font-bold">
+                    {userProfile?.display_name?.slice(0, 2).toUpperCase() || 'SP'}
+                  </div>
+                )}
+                <span className="text-sm font-medium">{userProfile?.display_name || 'Spotify User'}</span>
+              </div>
+              <button onClick={handleSignOut} className="text-xs text-white/40 hover:text-white/70 hover:underline">
+                Sign out
+              </button>
+            </div>
+          ) : (
+            <div className="flex items-center gap-2 text-xs uppercase tracking-[0.35em] text-white/55">
+              <span className="h-2.5 w-2.5 rounded-full bg-amber-400 shadow-[0_0_18px_rgba(251,191,36,0.45)]" />
+              Not signed in
+            </div>
+          )}
         </div>
       </header>
 

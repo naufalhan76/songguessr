@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import { supabase } from '@/lib/supabase';
 import { Card, Chip, Spinner } from '@heroui/react';
@@ -14,47 +14,69 @@ export default function AuthCallbackClient({ nextPath, code }: AuthCallbackClien
   const router = useRouter();
   const [message, setMessage] = useState('Finishing sign-in...');
 
+  const exchangeAttempted = useRef(false);
+
   useEffect(() => {
     let cancelled = false;
 
-    // First attempt to exchange code if PKCE flow is used
-    if (code) {
-      supabase.auth.exchangeCodeForSession(code).then(({ error }) => {
-        if (error) console.error('Failed to exchange auth code', error);
-      });
-    }
+    const finalizeAuth = async () => {
+      // Prevent double execution in React Strict Mode
+      if (exchangeAttempted.current) return;
+      exchangeAttempted.current = true;
 
-    // Subscribe to auth state changes to detect when the session is ready
-    // (useful for implicit grant where tokens are in the URL hash)
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
-      if (cancelled) return;
+      // Ensure that we explicitly wait for the exchange if PKCE (code) is present
+      if (code) {
+        const { error } = await supabase.auth.exchangeCodeForSession(code);
+        if (error) {
+          console.error('Failed to exchange auth code:', error);
+          if (!cancelled) {
+            setMessage('Invalid or expired login link. Retrying...');
+          }
+        }
+      }
+
+      // If we made it here (or if it was implicit flow without code), check session
+      const { data: { session }, error } = await supabase.auth.getSession();
       
+      if (cancelled) return;
+
+      if (error) {
+        console.error('Failed to get session:', error);
+        setMessage('Sign-in failed. Redirecting...');
+        setTimeout(() => router.replace('/'), 2000);
+        return;
+      }
+
       if (session) {
         router.replace(nextPath);
+        return;
+      }
+
+      // If there's still no session, wait a bit for implicit hash parsing 
+      // via onAuthStateChange which might be happening concurrently
+      setMessage('Finalizing...');
+      setTimeout(() => {
+        if (!cancelled) {
+          supabase.auth.getSession().then(({ data }) => {
+            if (data.session) {
+              router.replace(nextPath);
+            } else {
+              setMessage('Sign-in took too long. Returning home...');
+              setTimeout(() => router.replace('/'), 2000);
+            }
+          });
+        }
+      }, 3000);
+    };
+
+    // Also listen for change immediately in case it happens while we wait
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+      if (session && !cancelled) {
+        router.replace(nextPath);
       }
     });
 
-    // Fallback: check session immediately just in case it's already there
-    supabase.auth.getSession().then(({ data: { session }, error }) => {
-      if (cancelled) return;
-      
-      if (error) {
-        console.error('Failed to load session', error);
-        setMessage('Sign-in failed. Redirecting to the home page...');
-        setTimeout(() => router.replace('/'), 1500);
-      } else if (session) {
-        router.replace(nextPath);
-      } else {
-        // If no session yet, wait for onAuthStateChange to fire.
-        // We set a timeout as a fail-safe in case auth fails silently.
-        setTimeout(() => {
-          if (!cancelled) {
-            setMessage('Sign-in took too long. Returning home...');
-            setTimeout(() => router.replace('/'), 1500);
-          }
-        }, 10000); // 10 second timeout
-      }
-    });
+    finalizeAuth();
 
     return () => {
       cancelled = true;
