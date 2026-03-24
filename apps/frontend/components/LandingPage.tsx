@@ -44,14 +44,35 @@ export default function LandingPage() {
 
       if (session?.user) {
         setUserId(session.user.id);
+        
+        // Upsert user profile to ensure they exist in public.users before creating a room
+        const userProfileData = {
+          id: session.user.id,
+          email: session.user.email ?? '',
+          display_name: session.user.user_metadata?.full_name ?? session.user.email?.split('@')[0] ?? 'Spotify User',
+          avatar_url: session.user.user_metadata?.avatar_url ?? null,
+        };
+
+        // If we have a fresh token from session, save it too
+        if (session.provider_token) {
+          Object.assign(userProfileData, {
+            spotify_access_token: session.provider_token,
+            spotify_refresh_token: session.provider_refresh_token ?? null,
+            spotify_expires_at: session.expires_at ? new Date(session.expires_at * 1000).toISOString() : null,
+          });
+        }
+
         const { data: profile } = await supabase
           .from('users')
+          .upsert(userProfileData as any)
           .select('display_name, avatar_url')
-          .eq('id', session.user.id)
           .single();
 
-        if (profile && !cancelled) {
-          setUserProfile(profile as any);
+        if (!cancelled) {
+          setUserId(session.user.id);
+          if (profile) {
+            setUserProfile(profile as any);
+          }
         }
       }
     };
@@ -61,19 +82,38 @@ export default function LandingPage() {
       if (cancelled) return;
       
       const newUserId = session?.user?.id ?? null;
-      setUserId(newUserId);
       
       if (!newUserId) {
+        setUserId(null);
         setUserProfile(null);
-      } else if (!userProfile) {
-        // Fetch profile if it somehow changed but wasn't loaded
+      } else {
+        // Always attempt an upsert on auth state change to capture refreshed tokens
+        const userProfileData = {
+          id: session!.user.id,
+          email: session!.user.email ?? '',
+          display_name: session!.user.user_metadata?.full_name ?? session!.user.email?.split('@')[0] ?? 'Spotify User',
+          avatar_url: session!.user.user_metadata?.avatar_url ?? null,
+        };
+
+        if (session!.provider_token) {
+          Object.assign(userProfileData, {
+            spotify_access_token: session!.provider_token,
+            spotify_refresh_token: session!.provider_refresh_token ?? null,
+            spotify_expires_at: session!.expires_at ? new Date(session!.expires_at * 1000).toISOString() : null,
+          });
+        }
+
         const { data: profile } = await supabase
           .from('users')
+          .upsert(userProfileData as any)
           .select('display_name, avatar_url')
-          .eq('id', newUserId)
           .single();
-        if (profile && !cancelled) {
-          setUserProfile(profile as any);
+
+        if (!cancelled) {
+          setUserId(newUserId);
+          if (profile) {
+            setUserProfile(profile as any);
+          }
         }
       }
     });
