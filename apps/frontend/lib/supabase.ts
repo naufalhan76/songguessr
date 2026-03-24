@@ -26,7 +26,7 @@ export async function signInWithSpotify(redirectTo: string) {
     provider: 'spotify',
     options: {
       redirectTo,
-      scopes: 'user-top-read user-read-recently-played',
+      scopes: 'user-read-email user-read-private user-top-read user-read-recently-played',
     },
   });
 
