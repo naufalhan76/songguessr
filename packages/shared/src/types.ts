@@ -26,6 +26,7 @@ export interface Room {
 export interface RoomSettings {
   rounds: number; // default 10
   time_per_round: number; // seconds, default 30
+  max_players: number; // default 4
   allow_skips: boolean;
   point_system: 'speed' | 'correct_only';
 }

@@ -21,6 +21,7 @@ export interface Room {
 export interface RoomSettings {
     rounds: number;
     time_per_round: number;
+    max_players: number;
     allow_skips: boolean;
     point_system: 'speed' | 'correct_only';
 }

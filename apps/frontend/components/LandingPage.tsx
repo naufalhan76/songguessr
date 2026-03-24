@@ -3,7 +3,7 @@
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { generateRoomCode } from '@songguessr/shared';
-import { Button, Card, Chip, Separator } from '@heroui/react';
+import { Card, Chip, Separator } from '@heroui/react';
 
 const stats = [
   { value: '10', label: 'Rounds' },
@@ -29,6 +29,7 @@ const steps = [
 export default function LandingPage() {
   const router = useRouter();
   const [roomCode, setRoomCode] = useState('');
+  const canJoin = roomCode.length === 6;
 
   const handleCreateRoom = () => {
     const code = generateRoomCode();
@@ -36,9 +37,11 @@ export default function LandingPage() {
   };
 
   const handleJoinRoom = () => {
-    if (roomCode.length === 6) {
-      router.push(`/room/${roomCode}`);
+    if (!canJoin) {
+      return;
     }
+
+    router.push(`/room/${roomCode}`);
   };
 
   return (
@@ -54,15 +57,15 @@ export default function LandingPage() {
           </div>
         </div>
 
-        <Chip variant="secondary" className="border border-white/10 bg-white/5 text-white/70">
-          HeroUI interface
+        <Chip variant="soft" className="border border-emerald-400/20 bg-emerald-400/10 text-emerald-300">
+          Spotify hint
         </Chip>
       </header>
 
       <section className="grid flex-1 gap-8 py-10 lg:grid-cols-[1.05fr_0.95fr] lg:items-center">
         <div className="space-y-8">
           <div className="space-y-5">
-            <Chip variant="soft" className="border border-white/10 bg-white/5 text-white/70">
+            <Chip variant="soft" className="border border-emerald-400/20 bg-emerald-400/10 text-emerald-300">
               Real-time guessing room
             </Chip>
             <div className="space-y-4">
@@ -90,12 +93,12 @@ export default function LandingPage() {
           </div>
 
           <div className="flex flex-wrap gap-3">
-            <Button variant="primary" className="bg-white text-black shadow-lg shadow-white/5" onPress={handleCreateRoom}>
+            <button type="button" onClick={handleCreateRoom} className="inline-flex h-12 items-center justify-center rounded-full bg-white px-5 text-sm font-medium text-black shadow-lg shadow-white/5 transition hover:scale-[1.01] active:scale-[0.99]">
               Create room
-            </Button>
-            <Button variant="outline" className="border-white/15 text-white" onPress={handleJoinRoom} isDisabled={roomCode.length !== 6}>
+            </button>
+            <button type="button" onClick={handleJoinRoom} disabled={!canJoin} className="inline-flex h-12 items-center justify-center rounded-full border border-white/15 px-5 text-sm font-medium text-white transition hover:bg-white/5 disabled:cursor-not-allowed disabled:opacity-45">
               Join room
-            </Button>
+            </button>
           </div>
         </div>
 
@@ -116,12 +119,12 @@ export default function LandingPage() {
             <div className="space-y-3 rounded-2xl border border-white/10 bg-black/25 p-4">
               <div className="flex items-center justify-between text-sm text-white/55">
                 <span>Room code</span>
-                <span className="font-mono tracking-[0.3em] text-white/82">ABCDEF</span>
+                <span className="font-mono tracking-[0.3em] text-emerald-300/90">ABCDEF</span>
               </div>
               <Separator className="bg-white/10" />
               <div className="flex items-center justify-between text-sm text-white/55">
                 <span>Status</span>
-                <span className="text-white">Waiting</span>
+                <span className="text-emerald-300/90">Waiting</span>
               </div>
               <div className="flex items-center justify-between text-sm text-white/55">
                 <span>Mode</span>
@@ -176,9 +179,9 @@ export default function LandingPage() {
                 aria-label="Room code"
                 className="h-12 w-full rounded-2xl border border-white/12 bg-black/30 px-4 font-mono text-sm tracking-[0.32em] text-white outline-none transition placeholder:text-white/30 focus:border-white/30"
               />
-              <Button variant="primary" className="bg-white text-black sm:w-40" onPress={handleJoinRoom} isDisabled={roomCode.length !== 6}>
+              <button type="button" onClick={handleJoinRoom} disabled={!canJoin} className="inline-flex h-12 items-center justify-center rounded-2xl bg-white px-5 text-sm font-medium text-black transition hover:scale-[1.01] active:scale-[0.99] disabled:cursor-not-allowed disabled:opacity-45 sm:w-40">
                 Join now
-              </Button>
+              </button>
             </div>
           </Card.Content>
         </Card>

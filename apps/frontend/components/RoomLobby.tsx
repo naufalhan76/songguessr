@@ -17,6 +17,7 @@ const mockRoom: Room = {
   settings: {
     rounds: 10,
     time_per_round: 30,
+    max_players: 4,
     allow_skips: false,
     point_system: 'speed',
   },
@@ -50,12 +51,16 @@ export default function RoomLobby({ roomCode }: RoomLobbyProps) {
   const [isReady, setIsReady] = useState(false);
   const [rounds, setRounds] = useState(String(mockRoom.settings.rounds));
   const [timePerRound, setTimePerRound] = useState(String(mockRoom.settings.time_per_round));
+  const [maxPlayers, setMaxPlayers] = useState(String(mockRoom.settings.max_players));
   const [scoring, setScoring] = useState(mockRoom.settings.point_system);
 
   const isHost = currentUser?.id === room.host_id;
+  const roomMasterName = currentUser?.display_name ?? 'Roommaster';
   const readyCount = players.filter((player) => player.is_ready).length;
+  const maxPlayerCount = Number(maxPlayers);
   const allPlayersReady = readyCount >= 2 && players.every((player) => player.is_ready);
   const readinessPercent = players.length > 0 ? Math.round((readyCount / players.length) * 100) : 0;
+  const openSlots = Math.max(maxPlayerCount - players.length, 0);
 
   const handleConnectSpotify = () => {
     setIsConnectingSpotify(true);
@@ -103,6 +108,9 @@ export default function RoomLobby({ roomCode }: RoomLobbyProps) {
             <Chip variant="soft" className="border border-white/10 bg-white/5 text-white/70">
               {readyCount}/{players.length} ready
             </Chip>
+            <Chip variant="soft" className="border border-emerald-400/20 bg-emerald-400/10 text-emerald-300">
+              Roommaster: {roomMasterName}
+            </Chip>
           </div>
           <div>
             <h1 className="text-3xl font-semibold tracking-[-0.05em] text-white sm:text-5xl">
@@ -131,10 +139,12 @@ export default function RoomLobby({ roomCode }: RoomLobbyProps) {
               <div className="flex w-full items-center justify-between gap-3">
                 <div>
                   <h2 className="text-xl font-semibold tracking-[-0.04em] text-white">Players</h2>
-                  <p className="mt-1 text-sm text-white/50">Up to four players in the room.</p>
+                  <p className="mt-1 text-sm text-white/50">
+                    Up to {maxPlayerCount} total players including the roommaster.
+                  </p>
                 </div>
                 <Chip variant="soft" className="border border-white/10 bg-white/5 text-white/70">
-                  {players.length}/4
+                  {players.length}/{maxPlayerCount}
                 </Chip>
               </div>
               <div className="h-1.5 w-full overflow-hidden rounded-full bg-white/8">
@@ -158,8 +168,8 @@ export default function RoomLobby({ roomCode }: RoomLobbyProps) {
                       <div className="flex flex-wrap items-center gap-2">
                         <div className="font-medium text-white">{isCurrentUser ? 'You' : `Player ${index + 1}`}</div>
                         {player.user_id === room.host_id && (
-                          <Chip variant="secondary" className="border border-white/10 bg-white/5 text-white/60">
-                            Host
+                          <Chip variant="soft" className="border border-emerald-400/20 bg-emerald-400/10 text-emerald-300">
+                            Roommaster
                           </Chip>
                         )}
                       </div>
@@ -214,7 +224,7 @@ export default function RoomLobby({ roomCode }: RoomLobbyProps) {
                   <p className="mt-1 text-sm text-white/50">Host controls, kept minimal.</p>
                 </div>
               </Card.Header>
-              <Card.Content className="grid gap-4 px-6 pb-6 md:grid-cols-3">
+              <Card.Content className="grid gap-4 px-6 pb-6 md:grid-cols-4">
                 <label className="space-y-2 text-sm text-white/60">
                   <span>Rounds</span>
                   <select
@@ -237,6 +247,20 @@ export default function RoomLobby({ roomCode }: RoomLobbyProps) {
                     <option>30</option>
                     <option>45</option>
                     <option>60</option>
+                  </select>
+                </label>
+                <label className="space-y-2 text-sm text-white/60">
+                  <span>Player limit</span>
+                  <select
+                    value={maxPlayers}
+                    onChange={(event) => setMaxPlayers(event.target.value)}
+                    className="w-full rounded-2xl border border-white/10 bg-black/30 px-4 py-3 text-white outline-none transition focus:border-white/30"
+                  >
+                    <option>2</option>
+                    <option>3</option>
+                    <option>4</option>
+                    <option>5</option>
+                    <option>6</option>
                   </select>
                 </label>
                 <label className="space-y-2 text-sm text-white/60">
@@ -280,6 +304,11 @@ export default function RoomLobby({ roomCode }: RoomLobbyProps) {
                 </Chip>
               </div>
               <Separator className="bg-white/10" />
+              <div className="flex items-center justify-between">
+                <span className="text-sm text-white/50">Roommaster</span>
+                <span className="text-sm text-emerald-300">{roomMasterName}</span>
+              </div>
+              <Separator className="bg-white/10" />
               <div className="space-y-2">
                 <div className="flex items-center justify-between text-sm">
                   <span className="text-white/50">Players ready</span>
@@ -287,6 +316,10 @@ export default function RoomLobby({ roomCode }: RoomLobbyProps) {
                 </div>
                 <div className="h-1.5 overflow-hidden rounded-full bg-white/8">
                   <div className="h-full rounded-full bg-white" style={{ width: `${readinessPercent}%` }} />
+                </div>
+                <div className="flex items-center justify-between text-sm text-white/50">
+                  <span>Open slots</span>
+                  <span className="text-white">{openSlots}</span>
                 </div>
               </div>
             </Card.Content>
