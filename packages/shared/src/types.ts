@@ -15,6 +15,7 @@ export interface User {
 export interface Room {
   id: string;
   code: string;
+  room_name: string | null;
   host_id: string;
   status: 'waiting' | 'active' | 'finished';
   settings: RoomSettings;
@@ -144,6 +145,7 @@ export type Json = Record<string, any>;
 export interface RoomRow {
   id: string;
   code: string;
+  room_name: string | null;
   host_id: string;
   status: string;
   settings: Json;

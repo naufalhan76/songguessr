@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useState, useRef, useCallback } from 'react';
 import { useRoom } from '@/lib/useRoom';
 import { signInWithSpotify } from '@/lib/supabase';
 import { AnimatePresence, motion } from 'framer-motion';
@@ -23,12 +23,27 @@ export default function RoomLobby({ roomCode, onGameStarted }: RoomLobbyProps) {
     joinRoom,
     toggleReady,
     startGame,
+    updateSettings,
   } = useRoom(roomCode);
 
   const [isConnectingSpotify, setIsConnectingSpotify] = useState(false);
   const [isReady, setIsReady] = useState(false);
   const [countdown, setCountdown] = useState<number | null>(null);
   const [joinBase, setJoinBase] = useState(process.env.NEXT_PUBLIC_APP_URL?.replace(/\/$/, '') ?? '');
+
+  // Settings editing state
+  const [isEditingSettings, setIsEditingSettings] = useState(false);
+  const [editRounds, setEditRounds] = useState(10);
+  const [editTime, setEditTime] = useState(30);
+  const [editMaxPlayers, setEditMaxPlayers] = useState(4);
+  const [editScoring, setEditScoring] = useState<'speed' | 'correct_only'>('speed');
+  const [isSavingSettings, setIsSavingSettings] = useState(false);
+
+  // Room name editing state
+  const [isEditingName, setIsEditingName] = useState(false);
+  const [editRoomName, setEditRoomName] = useState('');
+  const [isSavingName, setIsSavingName] = useState(false);
+  const nameInputRef = useRef<HTMLInputElement>(null);
 
   const roomMasterName = currentUser?.display_name ?? 'Roommaster';
   const readyCount = players.filter((p) => p.is_ready).length;
@@ -41,6 +56,7 @@ export default function RoomLobby({ roomCode, onGameStarted }: RoomLobbyProps) {
   const rounds = room?.settings?.rounds ?? 10;
   const timePerRound = room?.settings?.time_per_round ?? 30;
   const scoring = room?.settings?.point_system ?? 'speed';
+  const roomDisplayName = (room as any)?.room_name || null;
 
   const qrUrl = useMemo(() => {
     if (!joinUrl) return '';
@@ -139,6 +155,58 @@ export default function RoomLobby({ roomCode, onGameStarted }: RoomLobbyProps) {
     alert('Room code copied to clipboard!');
   };
 
+  // Settings editing handlers
+  const handleStartEditSettings = useCallback(() => {
+    setEditRounds(rounds);
+    setEditTime(timePerRound);
+    setEditMaxPlayers(maxPlayerCount);
+    setEditScoring(scoring as 'speed' | 'correct_only');
+    setIsEditingSettings(true);
+  }, [rounds, timePerRound, maxPlayerCount, scoring]);
+
+  const handleCancelEditSettings = () => {
+    setIsEditingSettings(false);
+  };
+
+  const handleSaveSettings = async () => {
+    setIsSavingSettings(true);
+    const ok = await updateSettings({
+      rounds: editRounds,
+      time_per_round: editTime,
+      max_players: editMaxPlayers,
+      point_system: editScoring,
+    });
+    setIsSavingSettings(false);
+    if (ok) {
+      setIsEditingSettings(false);
+    }
+  };
+
+  // Room name editing handlers
+  const handleStartEditName = useCallback(() => {
+    setEditRoomName(roomDisplayName || '');
+    setIsEditingName(true);
+    setTimeout(() => nameInputRef.current?.focus(), 50);
+  }, [roomDisplayName]);
+
+  const handleCancelEditName = () => {
+    setIsEditingName(false);
+  };
+
+  const handleSaveName = async () => {
+    setIsSavingName(true);
+    const ok = await updateSettings({ room_name: editRoomName.trim() || null });
+    setIsSavingName(false);
+    if (ok) {
+      setIsEditingName(false);
+    }
+  };
+
+  const handleNameKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === 'Enter') handleSaveName();
+    if (e.key === 'Escape') handleCancelEditName();
+  };
+
   if (loading) {
     return (
       <main className="mx-auto flex min-h-screen w-full max-w-7xl items-center justify-center px-4 py-5 text-white">
@@ -214,9 +282,58 @@ export default function RoomLobby({ roomCode, onGameStarted }: RoomLobbyProps) {
             </Chip>
           </div>
           <div>
-            <h1 className="text-3xl font-semibold tracking-[-0.05em] text-white sm:text-5xl">
-              Room <span className="font-mono text-white/80">{roomCode}</span>
-            </h1>
+            {/* Room name + code */}
+            {isEditingName ? (
+              <div className="flex items-center gap-3">
+                <input
+                  ref={nameInputRef}
+                  value={editRoomName}
+                  onChange={(e) => setEditRoomName(e.target.value.slice(0, 50))}
+                  onKeyDown={handleNameKeyDown}
+                  placeholder="Enter room name..."
+                  maxLength={50}
+                  className="h-12 w-full max-w-md rounded-2xl border border-white/15 bg-black/30 px-4 text-2xl font-semibold tracking-[-0.03em] text-white outline-none transition placeholder:text-white/30 focus:border-white/30 sm:text-3xl"
+                />
+                <button
+                  type="button"
+                  onClick={handleSaveName}
+                  disabled={isSavingName}
+                  className="inline-flex h-10 items-center justify-center rounded-xl bg-emerald-500/20 px-4 text-sm font-medium text-emerald-300 transition hover:bg-emerald-500/30 disabled:opacity-50"
+                >
+                  {isSavingName ? '...' : 'Save'}
+                </button>
+                <button
+                  type="button"
+                  onClick={handleCancelEditName}
+                  className="inline-flex h-10 items-center justify-center rounded-xl border border-white/10 bg-white/5 px-4 text-sm font-medium text-white/60 transition hover:bg-white/10"
+                >
+                  Cancel
+                </button>
+              </div>
+            ) : (
+              <h1 className="group flex items-center gap-3 text-3xl font-semibold tracking-[-0.05em] text-white sm:text-5xl">
+                {roomDisplayName ? (
+                  <>
+                    <span>{roomDisplayName}</span>
+                    <span className="font-mono text-lg text-white/40 sm:text-2xl">{roomCode}</span>
+                  </>
+                ) : (
+                  <>
+                    Room <span className="font-mono text-white/80">{roomCode}</span>
+                  </>
+                )}
+                {isHost && (
+                  <button
+                    type="button"
+                    onClick={handleStartEditName}
+                    className="grid h-9 w-9 place-items-center rounded-xl border border-white/10 bg-white/5 text-white/40 opacity-0 transition hover:bg-white/10 hover:text-white/70 group-hover:opacity-100"
+                    title="Rename room"
+                  >
+                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/><path d="m15 5 4 4"/></svg>
+                  </button>
+                )}
+              </h1>
+            )}
             <p className="mt-2 max-w-2xl text-sm leading-6 text-white/55 sm:text-base">
               Share the code, connect Spotify, and wait for the host to start the round.
             </p>
@@ -235,31 +352,120 @@ export default function RoomLobby({ roomCode, onGameStarted }: RoomLobbyProps) {
 
       <div className="grid gap-6 xl:grid-cols-[1.25fr_0.75fr]">
         <div className="space-y-6">
-          {/* Game settings (display only, settings come from room creation) */}
+          {/* Game settings */}
           <Card className="border border-white/10 bg-white/[0.04] shadow-[0_20px_80px_rgba(0,0,0,0.38)]">
-            <Card.Header className="px-6 pt-6">
+            <Card.Header className="flex items-center justify-between px-6 pt-6">
               <div>
                 <h2 className="text-xl font-semibold tracking-[-0.04em] text-white">Game settings</h2>
-                <p className="mt-1 text-sm text-white/50">Set by the room host.</p>
+                <p className="mt-1 text-sm text-white/50">
+                  {isHost ? 'Click edit to customize game settings.' : 'Set by the room host.'}
+                </p>
               </div>
+              {isHost && !isEditingSettings && (
+                <button
+                  type="button"
+                  onClick={handleStartEditSettings}
+                  className="inline-flex h-9 items-center gap-2 rounded-xl border border-white/10 bg-white/5 px-4 text-sm font-medium text-white/60 transition hover:bg-white/10 hover:text-white"
+                >
+                  <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/><path d="m15 5 4 4"/></svg>
+                  Edit
+                </button>
+              )}
             </Card.Header>
-            <Card.Content className="grid gap-4 px-6 pb-6 md:grid-cols-4">
-              <div className="space-y-1 rounded-2xl border border-white/10 bg-black/20 p-3">
-                <div className="text-[0.65rem] uppercase tracking-[0.28em] text-white/40">Rounds</div>
-                <div className="text-sm font-medium text-white">{rounds}</div>
-              </div>
-              <div className="space-y-1 rounded-2xl border border-white/10 bg-black/20 p-3">
-                <div className="text-[0.65rem] uppercase tracking-[0.28em] text-white/40">Time</div>
-                <div className="text-sm font-medium text-white">{timePerRound}s</div>
-              </div>
-              <div className="space-y-1 rounded-2xl border border-white/10 bg-black/20 p-3">
-                <div className="text-[0.65rem] uppercase tracking-[0.28em] text-white/40">Limit</div>
-                <div className="text-sm font-medium text-white">{maxPlayerCount} players</div>
-              </div>
-              <div className="space-y-1 rounded-2xl border border-white/10 bg-black/20 p-3">
-                <div className="text-[0.65rem] uppercase tracking-[0.28em] text-white/40">Score</div>
-                <div className="text-sm font-medium text-white">{scoring === 'speed' ? 'Speed based' : 'Correct only'}</div>
-              </div>
+            <Card.Content className="px-6 pb-6">
+              {isEditingSettings ? (
+                <div className="space-y-4">
+                  <div className="grid gap-4 md:grid-cols-2">
+                    {/* Rounds */}
+                    <div className="space-y-2 rounded-2xl border border-white/10 bg-black/20 p-4">
+                      <label className="text-[0.65rem] uppercase tracking-[0.28em] text-white/40">Rounds</label>
+                      <select
+                        value={editRounds}
+                        onChange={(e) => setEditRounds(Number(e.target.value))}
+                        className="w-full rounded-xl border border-white/10 bg-black/40 px-3 py-2.5 text-sm font-medium text-white outline-none transition focus:border-white/25"
+                      >
+                        {[3, 5, 7, 10, 15, 20].map((v) => (
+                          <option key={v} value={v}>{v} rounds</option>
+                        ))}
+                      </select>
+                    </div>
+                    {/* Time per round */}
+                    <div className="space-y-2 rounded-2xl border border-white/10 bg-black/20 p-4">
+                      <label className="text-[0.65rem] uppercase tracking-[0.28em] text-white/40">Time per round</label>
+                      <select
+                        value={editTime}
+                        onChange={(e) => setEditTime(Number(e.target.value))}
+                        className="w-full rounded-xl border border-white/10 bg-black/40 px-3 py-2.5 text-sm font-medium text-white outline-none transition focus:border-white/25"
+                      >
+                        {[10, 15, 20, 25, 30, 45, 60].map((v) => (
+                          <option key={v} value={v}>{v} seconds</option>
+                        ))}
+                      </select>
+                    </div>
+                    {/* Max players */}
+                    <div className="space-y-2 rounded-2xl border border-white/10 bg-black/20 p-4">
+                      <label className="text-[0.65rem] uppercase tracking-[0.28em] text-white/40">Max players</label>
+                      <select
+                        value={editMaxPlayers}
+                        onChange={(e) => setEditMaxPlayers(Number(e.target.value))}
+                        className="w-full rounded-xl border border-white/10 bg-black/40 px-3 py-2.5 text-sm font-medium text-white outline-none transition focus:border-white/25"
+                      >
+                        {[2, 3, 4, 5, 6, 7, 8].map((v) => (
+                          <option key={v} value={v}>{v} players</option>
+                        ))}
+                      </select>
+                    </div>
+                    {/* Scoring */}
+                    <div className="space-y-2 rounded-2xl border border-white/10 bg-black/20 p-4">
+                      <label className="text-[0.65rem] uppercase tracking-[0.28em] text-white/40">Scoring</label>
+                      <select
+                        value={editScoring}
+                        onChange={(e) => setEditScoring(e.target.value as 'speed' | 'correct_only')}
+                        className="w-full rounded-xl border border-white/10 bg-black/40 px-3 py-2.5 text-sm font-medium text-white outline-none transition focus:border-white/25"
+                      >
+                        <option value="speed">Speed based</option>
+                        <option value="correct_only">Correct only</option>
+                      </select>
+                    </div>
+                  </div>
+                  <div className="flex gap-3">
+                    <button
+                      type="button"
+                      onClick={handleSaveSettings}
+                      disabled={isSavingSettings}
+                      className="inline-flex h-10 items-center justify-center rounded-xl bg-emerald-500/20 px-5 text-sm font-medium text-emerald-300 transition hover:bg-emerald-500/30 disabled:opacity-50"
+                    >
+                      {isSavingSettings ? 'Saving...' : 'Save settings'}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={handleCancelEditSettings}
+                      className="inline-flex h-10 items-center justify-center rounded-xl border border-white/10 bg-white/5 px-5 text-sm font-medium text-white/60 transition hover:bg-white/10"
+                    >
+                      Cancel
+                    </button>
+                  </div>
+                </div>
+              ) : (
+                <div className="grid gap-4 md:grid-cols-4">
+                  <div className="space-y-1 rounded-2xl border border-white/10 bg-black/20 p-3">
+                    <div className="text-[0.65rem] uppercase tracking-[0.28em] text-white/40">Rounds</div>
+                    <div className="text-sm font-medium text-white">{rounds}</div>
+                  </div>
+                  <div className="space-y-1 rounded-2xl border border-white/10 bg-black/20 p-3">
+                    <div className="text-[0.65rem] uppercase tracking-[0.28em] text-white/40">Time</div>
+                    <div className="text-sm font-medium text-white">{timePerRound}s</div>
+                  </div>
+                  <div className="space-y-1 rounded-2xl border border-white/10 bg-black/20 p-3">
+                    <div className="text-[0.65rem] uppercase tracking-[0.28em] text-white/40">Limit</div>
+                    <div className="text-sm font-medium text-white">{maxPlayerCount} players</div>
+                  </div>
+                  <div className="space-y-1 rounded-2xl border border-white/10 bg-black/20 p-3">
+                    <div className="text-[0.65rem] uppercase tracking-[0.28em] text-white/40">Score</div>
+                    <div className="text-sm font-medium text-white">{scoring === 'speed' ? 'Speed based' : 'Correct only'}</div>
+                  </div>
+                </div>
+              )}
             </Card.Content>
           </Card>
 
@@ -333,6 +539,15 @@ export default function RoomLobby({ roomCode, onGameStarted }: RoomLobbyProps) {
               </div>
             </Card.Header>
             <Card.Content className="space-y-4 px-6 pb-6">
+              {roomDisplayName && (
+                <>
+                  <div className="flex items-center justify-between">
+                    <span className="text-sm text-white/50">Room name</span>
+                    <span className="text-sm font-medium text-white">{roomDisplayName}</span>
+                  </div>
+                  <Separator className="bg-white/10" />
+                </>
+              )}
               <div className="flex items-center justify-between">
                 <span className="text-sm text-white/50">Room code</span>
                 <span className="font-mono text-sm tracking-[0.28em] text-white/85">{roomCode}</span>

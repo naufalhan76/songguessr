@@ -18,6 +18,7 @@ CREATE TABLE IF NOT EXISTS public.users (
 CREATE TABLE IF NOT EXISTS public.rooms (
   id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
   code TEXT UNIQUE NOT NULL,
+  room_name TEXT,
   host_id UUID NOT NULL REFERENCES public.users(id) ON DELETE CASCADE,
   status TEXT NOT NULL DEFAULT 'waiting' CHECK (status IN ('waiting', 'active', 'finished')),
   settings JSONB NOT NULL DEFAULT '{
@@ -116,6 +117,7 @@ CREATE POLICY "Users can update own profile" ON public.users
 
 -- Rooms: host and room members can read, host can create/update
 DROP POLICY IF EXISTS "Room members can view rooms" ON public.rooms;
+DROP POLICY IF EXISTS "Authenticated users can view rooms" ON public.rooms;
 CREATE POLICY "Authenticated users can view rooms" ON public.rooms
   FOR SELECT USING (auth.role() = 'authenticated');
 
@@ -130,6 +132,7 @@ CREATE POLICY "Host can update own room" ON public.rooms
 
 -- Players: room members can view, users can join/ready themselves
 DROP POLICY IF EXISTS "Room members can view players" ON public.players;
+DROP POLICY IF EXISTS "Authenticated users can view players" ON public.players;
 CREATE POLICY "Authenticated users can view players" ON public.players
   FOR SELECT USING (auth.role() = 'authenticated');
 
@@ -148,6 +151,7 @@ CREATE POLICY "Authenticated users can view tracks" ON public.tracks
   FOR SELECT USING (auth.role() = 'authenticated');
 
 DROP POLICY IF EXISTS "Room members can view game rounds" ON public.game_rounds;
+DROP POLICY IF EXISTS "Authenticated users can view game rounds" ON public.game_rounds;
 CREATE POLICY "Authenticated users can view game rounds" ON public.game_rounds
   FOR SELECT USING (auth.role() = 'authenticated');
 
@@ -163,6 +167,7 @@ CREATE POLICY "Room host can manage game rounds" ON public.game_rounds
   );
 
 DROP POLICY IF EXISTS "Room members can view player answers" ON public.player_answers;
+DROP POLICY IF EXISTS "Authenticated users can view player answers" ON public.player_answers;
 CREATE POLICY "Authenticated users can view player answers" ON public.player_answers
   FOR SELECT USING (auth.role() = 'authenticated');
 

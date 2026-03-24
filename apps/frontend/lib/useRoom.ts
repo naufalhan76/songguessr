@@ -15,6 +15,7 @@ interface UseRoomReturn {
   joinRoom: () => Promise<void>;
   toggleReady: (ready: boolean) => Promise<void>;
   startGame: () => Promise<{ tracks: unknown[] } | null>;
+  updateSettings: (settings: Record<string, unknown>) => Promise<boolean>;
   refetch: () => Promise<void>;
 }
 
@@ -210,6 +211,32 @@ export function useRoom(roomCode: string): UseRoomReturn {
     return json.data;
   }, [currentUser?.id, roomCode]);
 
+  const updateSettings = useCallback(
+    async (settings: Record<string, unknown>): Promise<boolean> => {
+      if (!currentUser?.id) return false;
+
+      try {
+        const res = await fetch(`/api/rooms/${roomCode}/settings`, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ host_id: currentUser.id, ...settings }),
+        });
+        const json = await res.json();
+        if (!json.success) {
+          setError(json.error);
+          return false;
+        }
+        // Update local room state
+        setRoom(json.data as unknown as Room);
+        return true;
+      } catch (e) {
+        console.error('Failed to update settings', e);
+        return false;
+      }
+    },
+    [currentUser?.id, roomCode]
+  );
+
   return {
     room,
     players,
@@ -221,6 +248,7 @@ export function useRoom(roomCode: string): UseRoomReturn {
     joinRoom,
     toggleReady,
     startGame,
+    updateSettings,
     refetch: fetchRoom,
   };
 }
