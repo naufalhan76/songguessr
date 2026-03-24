@@ -1,15 +1,14 @@
 'use client';
 
-import { motion } from 'framer-motion';
 import { useState } from 'react';
 import { Player, Room, User } from '@songguessr/shared';
 import { signInWithSpotify } from '@/lib/supabase';
+import { Button, Card, Chip, Separator } from '@heroui/react';
 
 interface RoomLobbyProps {
   roomCode: string;
 }
 
-// Mock data for demonstration
 const mockRoom: Room = {
   id: 'room-123',
   code: 'ABCDEF',
@@ -44,18 +43,22 @@ const mockUser: User = {
 };
 
 export default function RoomLobby({ roomCode }: RoomLobbyProps) {
-  const [room, setRoom] = useState<Room>(mockRoom);
+  const [room] = useState<Room>(mockRoom);
   const [players, setPlayers] = useState<Player[]>(mockPlayers);
-  const [currentUser, setCurrentUser] = useState<User | null>(mockUser);
+  const [currentUser] = useState<User | null>(mockUser);
   const [isConnectingSpotify, setIsConnectingSpotify] = useState(false);
   const [isReady, setIsReady] = useState(false);
+  const [rounds, setRounds] = useState(String(mockRoom.settings.rounds));
+  const [timePerRound, setTimePerRound] = useState(String(mockRoom.settings.time_per_round));
+  const [scoring, setScoring] = useState(mockRoom.settings.point_system);
 
   const isHost = currentUser?.id === room.host_id;
-  const allPlayersReady = players.every(p => p.is_ready) && players.length >= 2;
+  const readyCount = players.filter((player) => player.is_ready).length;
+  const allPlayersReady = readyCount >= 2 && players.every((player) => player.is_ready);
+  const readinessPercent = players.length > 0 ? Math.round((readyCount / players.length) * 100) : 0;
 
   const handleConnectSpotify = () => {
     setIsConnectingSpotify(true);
-
     const redirectTo = `${window.location.origin}/auth/callback?next=/room/${roomCode}`;
 
     signInWithSpotify(redirectTo).catch((error) => {
@@ -66,16 +69,13 @@ export default function RoomLobby({ roomCode }: RoomLobbyProps) {
   };
 
   const handleToggleReady = () => {
-    setIsReady((currentReady) => {
-      const nextReady = !currentReady;
-      setPlayers((currentPlayers) =>
-        currentPlayers.map((player) =>
-          player.user_id === currentUser?.id ? { ...player, is_ready: nextReady } : player
-        )
-      );
-      return nextReady;
-    });
-    // In a real implementation, this would update via Supabase Realtime
+    const nextReady = !isReady;
+    setIsReady(nextReady);
+    setPlayers((currentPlayers) =>
+      currentPlayers.map((player) =>
+        player.user_id === currentUser?.id ? { ...player, is_ready: nextReady } : player
+      )
+    );
   };
 
   const handleStartGame = () => {
@@ -83,227 +83,275 @@ export default function RoomLobby({ roomCode }: RoomLobbyProps) {
       alert('All players must be ready and at least 2 players needed');
       return;
     }
-    // In a real implementation, this would start the game
+
     alert('Game would start now!');
   };
 
-  const handleCopyCode = () => {
-    navigator.clipboard.writeText(roomCode);
+  const handleCopyCode = async () => {
+    await navigator.clipboard.writeText(roomCode);
     alert('Room code copied to clipboard!');
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-purple-900 via-indigo-800 to-blue-900 text-white p-4 md:p-8">
-      <div className="max-w-6xl mx-auto">
-        {/* Header */}
-        <motion.div
-          initial={{ opacity: 0, y: -20 }}
-          animate={{ opacity: 1, y: 0 }}
-          className="flex flex-col md:flex-row justify-between items-center mb-8"
-        >
+    <main className="mx-auto flex min-h-screen w-full max-w-7xl flex-col gap-8 px-4 py-5 text-white sm:px-6 lg:px-8">
+      <header className="flex flex-col gap-4 border-b border-white/10 pb-6 lg:flex-row lg:items-end lg:justify-between">
+        <div className="space-y-3">
+          <div className="flex flex-wrap items-center gap-3">
+            <Chip variant="tertiary" className="border border-white/10 bg-white/5 text-white/70">
+              Room lobby
+            </Chip>
+            <Chip variant="soft" className="border border-white/10 bg-white/5 text-white/70">
+              {readyCount}/{players.length} ready
+            </Chip>
+          </div>
           <div>
-            <h1 className="text-3xl md:text-4xl font-bold">Room: <span className="text-cyan-300">{roomCode}</span></h1>
-            <p className="text-gray-300">Share this code with friends to join</p>
-          </div>
-          <div className="flex gap-4 mt-4 md:mt-0">
-            <button
-              onClick={handleCopyCode}
-              className="px-6 py-3 bg-white/10 hover:bg-white/20 border border-white/30 rounded-xl font-medium transition-colors"
-            >
-              Copy Code
-            </button>
-            <button
-              onClick={() => window.location.href = '/'}
-              className="px-6 py-3 bg-red-500/20 hover:bg-red-500/30 border border-red-500/40 rounded-xl font-medium transition-colors"
-            >
-              Leave Room
-            </button>
-          </div>
-        </motion.div>
-
-        <div className="grid lg:grid-cols-3 gap-8">
-          {/* Left column: Players */}
-          <div className="lg:col-span-2">
-            <div className="bg-white/10 backdrop-blur-lg rounded-2xl p-6 border border-white/20 shadow-2xl">
-              <h2 className="text-2xl font-bold mb-6">Players ({players.length}/4)</h2>
-              <div className="grid sm:grid-cols-2 gap-4">
-                {players.map((player, index) => (
-                  <motion.div
-                    key={player.id}
-                    initial={{ opacity: 0, scale: 0.9 }}
-                    animate={{ opacity: 1, scale: 1 }}
-                    transition={{ delay: index * 0.1 }}
-                    className={`p-4 rounded-xl border ${player.is_ready ? 'bg-green-500/20 border-green-500/40' : 'bg-white/5 border-white/20'}`}
-                  >
-                    <div className="flex items-center gap-4">
-                      <div className="w-12 h-12 bg-gradient-to-br from-cyan-500 to-blue-600 rounded-full flex items-center justify-center font-bold text-lg">
-                        {player.user_id.slice(-2)}
-                      </div>
-                      <div className="flex-1">
-                        <div className="font-bold">{player.user_id === currentUser?.id ? 'You' : `Player ${index + 1}`}</div>
-                        <div className="text-sm text-gray-300">
-                          {player.is_ready ? (
-                            <span className="text-green-400">✓ Ready</span>
-                          ) : (
-                            <span className="text-yellow-400">Waiting...</span>
-                          )}
-                        </div>
-                      </div>
-                      {player.user_id === room.host_id && (
-                        <div className="px-3 py-1 bg-amber-500/30 text-amber-300 rounded-full text-xs font-bold">
-                          Host
-                        </div>
-                      )}
-                    </div>
-                  </motion.div>
-                ))}
-              </div>
-
-              {/* Spotify Connection */}
-              <div className="mt-8 pt-8 border-t border-white/20">
-                <h3 className="text-xl font-bold mb-4">Connect Your Music</h3>
-                <div className="flex flex-col sm:flex-row items-center gap-6">
-                  <div className="flex-1">
-                    <p className="text-gray-300 mb-2">
-                      Connect your Spotify account to share your top tracks and recently played songs.
-                      This data will be used to generate the quiz questions.
-                    </p>
-                    <p className="text-sm text-gray-400">
-                      We only request read‑only access to your top tracks and recently played.
-                    </p>
-                  </div>
-                  <button
-                    onClick={handleConnectSpotify}
-                    disabled={isConnectingSpotify}
-                    className={`px-8 py-3 rounded-xl font-bold transition-all ${isConnectingSpotify
-                        ? 'bg-gray-700 cursor-not-allowed'
-                        : 'bg-green-600 hover:bg-green-700 transform hover:scale-105'
-                      }`}
-                  >
-                    {isConnectingSpotify ? 'Connecting...' : 'Connect Spotify'}
-                  </button>
-                </div>
-              </div>
-            </div>
-
-            {/* Game Settings (Host only) */}
-            {isHost && (
-              <motion.div
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                className="mt-6 bg-white/10 backdrop-blur-lg rounded-2xl p-6 border border-white/20 shadow-2xl"
-              >
-                <h3 className="text-xl font-bold mb-4">Game Settings</h3>
-                <div className="grid md:grid-cols-3 gap-4">
-                  <div>
-                    <label className="block text-sm font-medium mb-2">Rounds</label>
-                    <select className="w-full bg-white/5 border border-white/20 rounded-lg px-4 py-2">
-                      <option>10</option>
-                      <option>15</option>
-                      <option>20</option>
-                    </select>
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium mb-2">Time per Round</label>
-                    <select className="w-full bg-white/5 border border-white/20 rounded-lg px-4 py-2">
-                      <option>30 seconds</option>
-                      <option>45 seconds</option>
-                      <option>60 seconds</option>
-                    </select>
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium mb-2">Point System</label>
-                    <select className="w-full bg-white/5 border border-white/20 rounded-lg px-4 py-2">
-                      <option>Speed‑based</option>
-                      <option>Correct‑only</option>
-                    </select>
-                  </div>
-                </div>
-              </motion.div>
-            )}
-          </div>
-
-          {/* Right column: Controls */}
-          <div>
-            <div className="sticky top-8">
-              <div className="bg-white/10 backdrop-blur-lg rounded-2xl p-6 border border-white/20 shadow-2xl mb-6">
-                <h3 className="text-xl font-bold mb-4">Room Status</h3>
-                <div className="space-y-4">
-                  <div className="flex justify-between">
-                    <span className="text-gray-300">Players Ready</span>
-                    <span className="font-bold">{players.filter(p => p.is_ready).length}/{players.length}</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="text-gray-300">Room Code</span>
-                    <span className="font-mono font-bold">{roomCode}</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="text-gray-300">Game Mode</span>
-                    <span className="font-bold">Top Tracks</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="text-gray-300">Status</span>
-                    <span className={`font-bold ${room.status === 'waiting' ? 'text-amber-400' : 'text-green-400'}`}>
-                      {room.status.toUpperCase()}
-                    </span>
-                  </div>
-                </div>
-              </div>
-
-              <div className="bg-white/10 backdrop-blur-lg rounded-2xl p-6 border border-white/20 shadow-2xl">
-                <h3 className="text-xl font-bold mb-6">Ready Up</h3>
-                <div className="space-y-6">
-                  <div className="flex items-center justify-between">
-                    <span className="text-lg">I'm ready to play</span>
-                    <button
-                      onClick={handleToggleReady}
-                      className={`w-14 h-8 rounded-full transition-colors ${isReady ? 'bg-green-500' : 'bg-gray-700'}`}
-                    >
-                      <div className={`w-6 h-6 rounded-full bg-white transform transition-transform ${isReady ? 'translate-x-8' : 'translate-x-1'}`} />
-                    </button>
-                  </div>
-
-                  <button
-                    onClick={handleStartGame}
-                    disabled={!allPlayersReady || !isHost}
-                    className={`w-full py-4 rounded-xl font-bold text-lg transition-all ${allPlayersReady && isHost
-                        ? 'bg-gradient-to-r from-cyan-500 to-blue-600 hover:from-cyan-600 hover:to-blue-700 transform hover:scale-105'
-                        : 'bg-gray-700 cursor-not-allowed'
-                      }`}
-                  >
-                    {isHost ? 'Start Game' : 'Waiting for Host...'}
-                  </button>
-
-                  {!allPlayersReady && (
-                    <p className="text-sm text-gray-400 text-center">
-                      {players.length < 2
-                        ? 'Need at least 2 players to start'
-                        : 'All players must be ready'
-                      }
-                    </p>
-                  )}
-                </div>
-              </div>
-
-              {/* QR Code for mobile (placeholder) */}
-              <div className="mt-6 bg-white/10 backdrop-blur-lg rounded-2xl p-6 border border-white/20 shadow-2xl">
-                <h3 className="text-xl font-bold mb-4">Join on Mobile</h3>
-                <p className="text-gray-300 mb-4">
-                  Scan this QR code to join this room on your phone.
-                </p>
-                <div className="bg-white p-4 rounded-lg inline-block">
-                  <div className="w-32 h-32 bg-gray-300 flex items-center justify-center text-gray-600">
-                    QR Code
-                  </div>
-                </div>
-                <p className="text-sm text-gray-400 mt-4">
-                  Or visit: <span className="font-mono">songguessr.app/join/{roomCode}</span>
-                </p>
-              </div>
-            </div>
+            <h1 className="text-3xl font-semibold tracking-[-0.05em] text-white sm:text-5xl">
+              Room <span className="font-mono text-white/80">{roomCode}</span>
+            </h1>
+            <p className="mt-2 max-w-2xl text-sm leading-6 text-white/55 sm:text-base">
+              Share the code, connect Spotify, and wait for the host to start the round.
+            </p>
           </div>
         </div>
+
+        <div className="flex flex-wrap gap-3">
+          <Button variant="outline" className="border-white/15 text-white" onPress={handleCopyCode}>
+            Copy code
+          </Button>
+          <Button variant="primary" className="bg-white text-black" onPress={() => window.location.href = '/'}>
+            Leave room
+          </Button>
+        </div>
+      </header>
+
+      <div className="grid gap-6 xl:grid-cols-[1.25fr_0.75fr]">
+        <div className="space-y-6">
+          <Card className="border border-white/10 bg-white/[0.04] shadow-[0_20px_80px_rgba(0,0,0,0.38)]">
+            <Card.Header className="flex flex-col items-start gap-3 px-6 pt-6">
+              <div className="flex w-full items-center justify-between gap-3">
+                <div>
+                  <h2 className="text-xl font-semibold tracking-[-0.04em] text-white">Players</h2>
+                  <p className="mt-1 text-sm text-white/50">Up to four players in the room.</p>
+                </div>
+                <Chip variant="soft" className="border border-white/10 bg-white/5 text-white/70">
+                  {players.length}/4
+                </Chip>
+              </div>
+              <div className="h-1.5 w-full overflow-hidden rounded-full bg-white/8">
+                <div className="h-full rounded-full bg-white" style={{ width: `${readinessPercent}%` }} />
+              </div>
+            </Card.Header>
+
+            <Card.Content className="space-y-3 px-6 pb-6">
+              {players.map((player, index) => {
+                const isCurrentUser = player.user_id === currentUser?.id;
+
+                return (
+                  <div
+                    key={player.id}
+                    className="flex items-center gap-4 rounded-2xl border border-white/10 bg-black/20 px-4 py-4 transition-colors hover:bg-white/[0.05]"
+                  >
+                    <div className="grid h-11 w-11 place-items-center rounded-full border border-white/10 bg-white/5 font-mono text-sm tracking-[0.2em] text-white/80">
+                      {player.user_id.slice(-2).toUpperCase()}
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <div className="font-medium text-white">{isCurrentUser ? 'You' : `Player ${index + 1}`}</div>
+                        {player.user_id === room.host_id && (
+                          <Chip variant="secondary" className="border border-white/10 bg-white/5 text-white/60">
+                            Host
+                          </Chip>
+                        )}
+                      </div>
+                      <div className="mt-1 text-sm text-white/48">
+                        {player.is_ready ? 'Ready to play' : 'Waiting for readiness'}
+                      </div>
+                    </div>
+                    <Chip
+                      variant={player.is_ready ? 'primary' : 'secondary'}
+                      className={player.is_ready ? 'bg-white text-black' : 'border border-white/10 bg-white/5 text-white/55'}
+                    >
+                      {player.is_ready ? 'Ready' : 'Waiting'}
+                    </Chip>
+                  </div>
+                );
+              })}
+            </Card.Content>
+          </Card>
+
+          <Card className="border border-white/10 bg-white/[0.04] shadow-none">
+            <Card.Header className="px-6 pt-6">
+              <div>
+                <h2 className="text-xl font-semibold tracking-[-0.04em] text-white">Music access</h2>
+                <p className="mt-1 text-sm text-white/50">Connect Spotify once so the room can fetch top tracks.</p>
+              </div>
+            </Card.Header>
+            <Card.Content className="space-y-4 px-6 pb-6">
+              <p className="max-w-3xl text-sm leading-6 text-white/58">
+                We only request read-only access to your top tracks and recently played songs.
+                The room stays quiet so the game state remains the focus.
+              </p>
+              <div className="flex flex-wrap gap-3">
+                <Button
+                  variant="primary"
+                  className="bg-white text-black"
+                  onPress={handleConnectSpotify}
+                >
+                  {isConnectingSpotify ? 'Connecting' : 'Connect Spotify'}
+                </Button>
+                <Chip variant="soft" className="border border-white/10 bg-white/5 text-white/55">
+                  read only
+                </Chip>
+              </div>
+            </Card.Content>
+          </Card>
+
+          {isHost && (
+            <Card className="border border-white/10 bg-white/[0.04] shadow-none">
+              <Card.Header className="px-6 pt-6">
+                <div>
+                  <h2 className="text-xl font-semibold tracking-[-0.04em] text-white">Game settings</h2>
+                  <p className="mt-1 text-sm text-white/50">Host controls, kept minimal.</p>
+                </div>
+              </Card.Header>
+              <Card.Content className="grid gap-4 px-6 pb-6 md:grid-cols-3">
+                <label className="space-y-2 text-sm text-white/60">
+                  <span>Rounds</span>
+                  <select
+                    value={rounds}
+                    onChange={(event) => setRounds(event.target.value)}
+                    className="w-full rounded-2xl border border-white/10 bg-black/30 px-4 py-3 text-white outline-none transition focus:border-white/30"
+                  >
+                    <option>10</option>
+                    <option>15</option>
+                    <option>20</option>
+                  </select>
+                </label>
+                <label className="space-y-2 text-sm text-white/60">
+                  <span>Time per round</span>
+                  <select
+                    value={timePerRound}
+                    onChange={(event) => setTimePerRound(event.target.value)}
+                    className="w-full rounded-2xl border border-white/10 bg-black/30 px-4 py-3 text-white outline-none transition focus:border-white/30"
+                  >
+                    <option>30</option>
+                    <option>45</option>
+                    <option>60</option>
+                  </select>
+                </label>
+                <label className="space-y-2 text-sm text-white/60">
+                  <span>Scoring</span>
+                  <select
+                    value={scoring}
+                    onChange={(event) => setScoring(event.target.value as Room['settings']['point_system'])}
+                    className="w-full rounded-2xl border border-white/10 bg-black/30 px-4 py-3 text-white outline-none transition focus:border-white/30"
+                  >
+                    <option value="speed">Speed based</option>
+                    <option value="correct_only">Correct only</option>
+                  </select>
+                </label>
+              </Card.Content>
+            </Card>
+          )}
+        </div>
+
+        <div className="space-y-6">
+          <Card className="border border-white/10 bg-white/[0.04] shadow-none">
+            <Card.Header className="px-6 pt-6">
+              <div>
+                <h2 className="text-xl font-semibold tracking-[-0.04em] text-white">Room status</h2>
+                <p className="mt-1 text-sm text-white/50">The room stays readable at a glance.</p>
+              </div>
+            </Card.Header>
+            <Card.Content className="space-y-4 px-6 pb-6">
+              <div className="flex items-center justify-between">
+                <span className="text-sm text-white/50">Room code</span>
+                <span className="font-mono text-sm tracking-[0.28em] text-white/85">{roomCode}</span>
+              </div>
+              <Separator className="bg-white/10" />
+              <div className="flex items-center justify-between">
+                <span className="text-sm text-white/50">Mode</span>
+                <span className="text-sm text-white">Top tracks</span>
+              </div>
+              <div className="flex items-center justify-between">
+                <span className="text-sm text-white/50">Status</span>
+                <Chip variant="primary" className="bg-white text-black">
+                  {room.status}
+                </Chip>
+              </div>
+              <Separator className="bg-white/10" />
+              <div className="space-y-2">
+                <div className="flex items-center justify-between text-sm">
+                  <span className="text-white/50">Players ready</span>
+                  <span className="text-white">{readyCount}/{players.length}</span>
+                </div>
+                <div className="h-1.5 overflow-hidden rounded-full bg-white/8">
+                  <div className="h-full rounded-full bg-white" style={{ width: `${readinessPercent}%` }} />
+                </div>
+              </div>
+            </Card.Content>
+          </Card>
+
+          <Card className="border border-white/10 bg-white/[0.04] shadow-none">
+            <Card.Header className="px-6 pt-6">
+              <div>
+                <h2 className="text-xl font-semibold tracking-[-0.04em] text-white">Ready up</h2>
+                <p className="mt-1 text-sm text-white/50">A single action, no clutter.</p>
+              </div>
+            </Card.Header>
+            <Card.Content className="space-y-5 px-6 pb-6">
+              <button
+                type="button"
+                onClick={handleToggleReady}
+                className="flex w-full items-center justify-between rounded-2xl border border-white/10 bg-black/25 px-4 py-4 text-left transition hover:bg-white/[0.05]"
+              >
+                <div>
+                  <div className="text-sm text-white">I'm ready to play</div>
+                  <div className="mt-1 text-sm text-white/50">Signal to the host that you are locked in.</div>
+                </div>
+                <div className={`grid h-10 w-10 place-items-center rounded-full border text-sm transition ${isReady ? 'border-white bg-white text-black' : 'border-white/15 bg-transparent text-white/50'}`}>
+                  {isReady ? 'On' : 'Off'}
+                </div>
+              </button>
+
+              <Button
+                variant="primary"
+                size="lg"
+                className="w-full bg-white text-black"
+                onPress={handleStartGame}
+                isDisabled={!allPlayersReady || !isHost}
+              >
+                {isHost ? 'Start game' : 'Waiting for host'}
+              </Button>
+
+              {!allPlayersReady && (
+                <p className="text-center text-sm text-white/45">
+                  {players.length < 2 ? 'Need at least 2 players to start' : 'All players must be ready'}
+                </p>
+              )}
+            </Card.Content>
+          </Card>
+
+          <Card className="border border-white/10 bg-white/[0.04] shadow-none">
+            <Card.Header className="px-6 pt-6">
+              <div>
+                <h2 className="text-xl font-semibold tracking-[-0.04em] text-white">Mobile join</h2>
+                <p className="mt-1 text-sm text-white/50">A placeholder for a mobile handoff.</p>
+              </div>
+            </Card.Header>
+            <Card.Content className="space-y-4 px-6 pb-6">
+              <div className="flex items-center justify-center rounded-3xl border border-dashed border-white/15 bg-black/20 p-8">
+                <div className="grid h-36 w-36 place-items-center rounded-2xl border border-white/10 bg-white/[0.03] font-mono text-sm tracking-[0.35em] text-white/35">
+                  QR
+                </div>
+              </div>
+              <div className="text-center text-sm text-white/50">
+                Or visit <span className="font-mono text-white/75">songguessr.app/join/{roomCode}</span>
+              </div>
+            </Card.Content>
+          </Card>
+        </div>
       </div>
-    </div>
+    </main>
   );
 }

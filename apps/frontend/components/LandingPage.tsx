@@ -1,148 +1,188 @@
 'use client';
 
-import { motion } from 'framer-motion';
 import { useState } from 'react';
+import { useRouter } from 'next/navigation';
 import { generateRoomCode } from '@songguessr/shared';
-import Link from 'next/link';
+import { Button, Card, Chip, Separator } from '@heroui/react';
+
+const stats = [
+  { value: '10', label: 'Rounds' },
+  { value: '30s', label: 'Preview' },
+  { value: '2-4', label: 'Players' },
+];
+
+const steps = [
+  {
+    title: 'Listen',
+    text: 'Lean previews, no clutter, and a room that stays readable while the track plays.',
+  },
+  {
+    title: 'Guess',
+    text: 'Fast feedback for every player with a minimal lobby that makes state obvious.',
+  },
+  {
+    title: 'Score',
+    text: 'Simple speed-based scoring with a quiet visual language and clear hierarchy.',
+  },
+];
 
 export default function LandingPage() {
+  const router = useRouter();
   const [roomCode, setRoomCode] = useState('');
 
   const handleCreateRoom = () => {
     const code = generateRoomCode();
-    // In a real implementation, this would create a room in the backend
-    // For now, we'll just navigate to the room page
-    window.location.href = `/room/${code}`;
+    router.push(`/room/${code}`);
+  };
+
+  const handleJoinRoom = () => {
+    if (roomCode.length === 6) {
+      router.push(`/room/${roomCode}`);
+    }
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-purple-900 via-indigo-800 to-blue-900 text-white">
-      <div className="container mx-auto px-4 py-16">
-        <motion.div
-          initial={{ opacity: 0, y: -20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.5 }}
-          className="text-center mb-12"
-        >
-          <h1 className="text-5xl md:text-7xl font-bold mb-4 bg-clip-text text-transparent bg-gradient-to-r from-cyan-400 to-pink-400">
-            Songguessr
-          </h1>
-          <p className="text-xl md:text-2xl text-gray-300 max-w-2xl mx-auto">
-            A real‑time multiplayer game where you guess songs from your friends' Spotify playlists.
-          </p>
-        </motion.div>
-
-        <div className="grid md:grid-cols-2 gap-8 max-w-4xl mx-auto">
-          {/* Create Room Card */}
-          <motion.div
-            initial={{ opacity: 0, x: -20 }}
-            animate={{ opacity: 1, x: 0 }}
-            transition={{ duration: 0.5, delay: 0.2 }}
-            className="bg-white/10 backdrop-blur-lg rounded-2xl p-8 border border-white/20 shadow-2xl"
-          >
-            <div className="mb-6">
-              <div className="w-16 h-16 bg-gradient-to-br from-cyan-500 to-blue-600 rounded-2xl flex items-center justify-center mb-4 mx-auto">
-                <svg className="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-                </svg>
-              </div>
-              <h2 className="text-2xl font-bold mb-2">Create a Room</h2>
-              <p className="text-gray-300">Start a new game and invite friends with a room code.</p>
-            </div>
-            <button
-              onClick={handleCreateRoom}
-              className="w-full py-4 bg-gradient-to-r from-cyan-500 to-blue-600 hover:from-cyan-600 hover:to-blue-700 rounded-xl font-bold text-lg transition-all duration-300 transform hover:scale-[1.02] active:scale-[0.98] shadow-lg"
-            >
-              Create New Room
-            </button>
-            <p className="text-sm text-gray-400 mt-4 text-center">
-              You'll need to connect your Spotify account to share your top tracks.
-            </p>
-          </motion.div>
-
-          {/* Join Room Card */}
-          <motion.div
-            initial={{ opacity: 0, x: 20 }}
-            animate={{ opacity: 1, x: 0 }}
-            transition={{ duration: 0.5, delay: 0.3 }}
-            className="bg-white/10 backdrop-blur-lg rounded-2xl p-8 border border-white/20 shadow-2xl"
-          >
-            <div className="mb-6">
-              <div className="w-16 h-16 bg-gradient-to-br from-pink-500 to-purple-600 rounded-2xl flex items-center justify-center mb-4 mx-auto">
-                <svg className="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
-                </svg>
-              </div>
-              <h2 className="text-2xl font-bold mb-2">Join a Room</h2>
-              <p className="text-gray-300">Enter a room code to join an existing game.</p>
-            </div>
-            <div className="space-y-4">
-              <input
-                type="text"
-                value={roomCode}
-                onChange={(e) => setRoomCode(e.target.value.toUpperCase())}
-                placeholder="Enter 6‑digit code"
-                className="w-full px-6 py-4 bg-white/5 border border-white/20 rounded-xl text-center text-2xl font-bold tracking-widest placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-cyan-500 focus:border-transparent"
-                maxLength={6}
-              />
-              <Link
-                href={`/room/${roomCode}`}
-                className={`block w-full py-4 rounded-xl font-bold text-lg transition-all duration-300 ${roomCode.length === 6
-                    ? 'bg-gradient-to-r from-pink-500 to-purple-600 hover:from-pink-600 hover:to-purple-700 transform hover:scale-[1.02]'
-                    : 'bg-gray-700 cursor-not-allowed'
-                  } text-center shadow-lg`}
-              >
-                Join Room
-              </Link>
-            </div>
-            <p className="text-sm text-gray-400 mt-4 text-center">
-              Ask your friend for the room code they created.
-            </p>
-          </motion.div>
+    <main className="mx-auto flex min-h-screen w-full max-w-7xl flex-col px-4 py-5 sm:px-6 lg:px-8">
+      <header className="flex flex-col gap-4 border-b border-white/10 pb-5 sm:flex-row sm:items-end sm:justify-between">
+        <div className="flex items-center gap-3">
+          <div className="grid h-11 w-11 place-items-center rounded-full border border-white/15 bg-white/5 font-mono text-sm tracking-[0.35em] text-white/80">
+            SG
+          </div>
+          <div>
+            <div className="text-[0.7rem] uppercase tracking-[0.42em] text-white/40">Songguessr</div>
+            <div className="text-sm text-white/65">Monochrome music duel</div>
+          </div>
         </div>
 
-        {/* Features */}
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.5, delay: 0.5 }}
-          className="mt-16 max-w-4xl mx-auto"
-        >
-          <h3 className="text-2xl font-bold mb-8 text-center">How It Works</h3>
-          <div className="grid md:grid-cols-3 gap-6">
-            <div className="bg-white/5 p-6 rounded-xl border border-white/10">
-              <div className="text-cyan-400 font-bold text-lg mb-2">1. Connect Spotify</div>
-              <p className="text-gray-300">Grant access to your top tracks & recently played songs.</p>
-            </div>
-            <div className="bg-white/5 p-6 rounded-xl border border-white/10">
-              <div className="text-cyan-400 font-bold text-lg mb-2">2. Join a Room</div>
-              <p className="text-gray-300">Create or join a room with 2‑4 players using a unique code.</p>
-            </div>
-            <div className="bg-white/5 p-6 rounded-xl border border-white/10">
-              <div className="text-cyan-400 font-bold text-lg mb-2">3. Guess & Score</div>
-              <p className="text-gray-300">Listen to 30‑second previews and guess the song faster than others.</p>
+        <Chip variant="secondary" className="border border-white/10 bg-white/5 text-white/70">
+          HeroUI interface
+        </Chip>
+      </header>
+
+      <section className="grid flex-1 gap-8 py-10 lg:grid-cols-[1.05fr_0.95fr] lg:items-center">
+        <div className="space-y-8">
+          <div className="space-y-5">
+            <Chip variant="soft" className="border border-white/10 bg-white/5 text-white/70">
+              Real-time guessing room
+            </Chip>
+            <div className="space-y-4">
+              <h1 className="max-w-4xl text-4xl font-semibold tracking-[-0.07em] text-white sm:text-5xl lg:text-7xl">
+                Guess songs.
+                <br />
+                Keep the room honest.
+              </h1>
+              <p className="max-w-2xl text-sm leading-7 text-white/62 sm:text-base lg:text-lg">
+                Songguessr turns Spotify listening history into a stripped-back social game.
+                No loud gradients, no visual noise, just a sharp room code and fast rounds.
+              </p>
             </div>
           </div>
-        </motion.div>
 
-        {/* Footer */}
-        <motion.div
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          transition={{ duration: 0.5, delay: 0.7 }}
-          className="mt-16 text-center text-gray-400 text-sm"
-        >
-          <p>
-            This game uses the Spotify Web API to fetch your listening data.
-            Your data is only used during the game and is not stored permanently.
-          </p>
-          <p className="mt-2">
-            By playing, you agree to our{' '}
-            <a href="#" className="text-cyan-400 hover:underline">Terms of Service</a> and{' '}
-            <a href="#" className="text-cyan-400 hover:underline">Privacy Policy</a>.
-          </p>
-        </motion.div>
-      </div>
-    </div>
+          <div className="grid gap-3 sm:grid-cols-3">
+            {stats.map((item) => (
+              <Card key={item.label} className="border border-white/10 bg-white/[0.03] shadow-none">
+                <Card.Content className="p-5">
+                  <div className="font-mono text-2xl text-white">{item.value}</div>
+                  <div className="mt-1 text-sm text-white/48">{item.label}</div>
+                </Card.Content>
+              </Card>
+            ))}
+          </div>
+
+          <div className="flex flex-wrap gap-3">
+            <Button variant="primary" className="bg-white text-black shadow-lg shadow-white/5" onPress={handleCreateRoom}>
+              Create room
+            </Button>
+            <Button variant="outline" className="border-white/15 text-white" onPress={handleJoinRoom} isDisabled={roomCode.length !== 6}>
+              Join room
+            </Button>
+          </div>
+        </div>
+
+        <Card className="border border-white/10 bg-white/[0.04] shadow-[0_20px_80px_rgba(0,0,0,0.38)]">
+          <Card.Header className="flex flex-col items-start gap-3 px-6 pt-6">
+            <Chip variant="secondary" className="bg-white/10 text-white/72">
+              Lobby preview
+            </Chip>
+            <div>
+              <h2 className="text-2xl font-semibold tracking-[-0.05em] text-white">Minimal room flow</h2>
+              <p className="mt-1 text-sm text-white/55">
+                A cleaner lobby built for room state, not decorative noise.
+              </p>
+            </div>
+          </Card.Header>
+
+          <Card.Content className="space-y-5 px-6 pb-6">
+            <div className="space-y-3 rounded-2xl border border-white/10 bg-black/25 p-4">
+              <div className="flex items-center justify-between text-sm text-white/55">
+                <span>Room code</span>
+                <span className="font-mono tracking-[0.3em] text-white/82">ABCDEF</span>
+              </div>
+              <Separator className="bg-white/10" />
+              <div className="flex items-center justify-between text-sm text-white/55">
+                <span>Status</span>
+                <span className="text-white">Waiting</span>
+              </div>
+              <div className="flex items-center justify-between text-sm text-white/55">
+                <span>Mode</span>
+                <span className="text-white">Top tracks</span>
+              </div>
+            </div>
+
+            <div className="grid gap-3 sm:grid-cols-2">
+              <Card className="border border-white/10 bg-white/[0.03] shadow-none">
+                <Card.Content className="p-4">
+                  <div className="text-xs uppercase tracking-[0.3em] text-white/40">Look</div>
+                  <div className="mt-1 text-sm text-white/70">Monochrome, high contrast, no excess color.</div>
+                </Card.Content>
+              </Card>
+              <Card className="border border-white/10 bg-white/[0.03] shadow-none">
+                <Card.Content className="p-4">
+                  <div className="text-xs uppercase tracking-[0.3em] text-white/40">Interaction</div>
+                  <div className="mt-1 text-sm text-white/70">Sharp controls with clear hover and focus states.</div>
+                </Card.Content>
+              </Card>
+            </div>
+          </Card.Content>
+        </Card>
+      </section>
+
+      <section className="grid gap-4 border-t border-white/10 py-8 md:grid-cols-3">
+        {steps.map((item) => (
+          <Card key={item.title} className="border border-white/10 bg-white/[0.03] shadow-none transition-transform duration-200 hover:-translate-y-0.5 hover:bg-white/[0.05]">
+            <Card.Content className="p-5">
+              <div className="font-semibold text-white">{item.title}</div>
+              <p className="mt-2 text-sm leading-6 text-white/55">{item.text}</p>
+            </Card.Content>
+          </Card>
+        ))}
+      </section>
+
+      <section className="border-t border-white/10 py-6">
+        <Card className="border border-white/10 bg-white/[0.03] shadow-none">
+          <Card.Content className="grid gap-4 p-5 md:grid-cols-[1.2fr_0.8fr] md:items-center">
+            <div>
+              <div className="text-sm font-medium text-white">Join a room</div>
+              <p className="mt-1 text-sm text-white/52">
+                Enter a 6-character room code to jump straight into a lobby.
+              </p>
+            </div>
+            <div className="flex flex-col gap-3 sm:flex-row">
+              <input
+                value={roomCode}
+                onChange={(event) => setRoomCode(event.target.value.toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 6))}
+                maxLength={6}
+                placeholder="ROOM01"
+                aria-label="Room code"
+                className="h-12 w-full rounded-2xl border border-white/12 bg-black/30 px-4 font-mono text-sm tracking-[0.32em] text-white outline-none transition placeholder:text-white/30 focus:border-white/30"
+              />
+              <Button variant="primary" className="bg-white text-black sm:w-40" onPress={handleJoinRoom} isDisabled={roomCode.length !== 6}>
+                Join now
+              </Button>
+            </div>
+          </Card.Content>
+        </Card>
+      </section>
+    </main>
   );
 }
