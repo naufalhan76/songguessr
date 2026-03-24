@@ -1,8 +1,9 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { generateRoomCode } from '@songguessr/shared';
+import { supabase, signInWithSpotify } from '@/lib/supabase';
 import { Card, Chip, Separator } from '@heroui/react';
 
 const stats = [
@@ -29,18 +30,58 @@ const steps = [
 export default function LandingPage() {
   const router = useRouter();
   const [roomCode, setRoomCode] = useState('');
+  const [userId, setUserId] = useState<string | null>(null);
+  const [isCreating, setIsCreating] = useState(false);
   const canJoin = roomCode.length === 6;
 
-  const handleCreateRoom = () => {
-    const code = generateRoomCode();
-    router.push(`/room/${code}`);
-  };
+  useEffect(() => {
+    const loadUser = async () => {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (session?.user) {
+        setUserId(session.user.id);
+      }
+    };
+    loadUser();
 
-  const handleJoinRoom = () => {
-    if (!canJoin) {
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+      setUserId(session?.user?.id ?? null);
+    });
+
+    return () => subscription.unsubscribe();
+  }, []);
+
+  const handleCreateRoom = async () => {
+    if (!userId) {
+      // Not logged in, redirect to Spotify auth first
+      const redirectTo = `${window.location.origin}/auth/callback?next=/`;
+      await signInWithSpotify(redirectTo);
       return;
     }
 
+    setIsCreating(true);
+    try {
+      const res = await fetch('/api/rooms', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ host_id: userId }),
+      });
+      const json = await res.json();
+
+      if (json.success) {
+        router.push(`/room/${json.data.code}`);
+      } else {
+        alert(json.error || 'Failed to create room');
+      }
+    } catch (err) {
+      console.error('Failed to create room', err);
+      alert('Failed to create room. Please try again.');
+    } finally {
+      setIsCreating(false);
+    }
+  };
+
+  const handleJoinRoom = () => {
+    if (!canJoin) return;
     router.push(`/room/${roomCode}`);
   };
 
@@ -58,8 +99,8 @@ export default function LandingPage() {
         </div>
 
         <div className="flex items-center gap-2 text-xs uppercase tracking-[0.35em] text-white/55">
-          <span className="h-2.5 w-2.5 rounded-full bg-emerald-400 shadow-[0_0_18px_rgba(74,222,128,0.45)]" />
-          Spotify sync
+          <span className={`h-2.5 w-2.5 rounded-full ${userId ? 'bg-emerald-400 shadow-[0_0_18px_rgba(74,222,128,0.45)]' : 'bg-amber-400 shadow-[0_0_18px_rgba(251,191,36,0.45)]'}`} />
+          {userId ? 'Spotify connected' : 'Not signed in'}
         </div>
       </header>
 
@@ -94,8 +135,13 @@ export default function LandingPage() {
           </div>
 
           <div className="flex flex-wrap gap-3">
-            <button type="button" onClick={handleCreateRoom} className="inline-flex h-12 items-center justify-center rounded-full bg-white px-5 text-sm font-medium text-black shadow-lg shadow-white/5 transition hover:scale-[1.01] active:scale-[0.99]">
-              Create room
+            <button
+              type="button"
+              onClick={handleCreateRoom}
+              disabled={isCreating}
+              className="inline-flex h-12 items-center justify-center rounded-full bg-white px-5 text-sm font-medium text-black shadow-lg shadow-white/5 transition hover:scale-[1.01] active:scale-[0.99] disabled:opacity-50"
+            >
+              {isCreating ? 'Creating...' : 'Create room'}
             </button>
             <button type="button" onClick={handleJoinRoom} disabled={!canJoin} className="inline-flex h-12 items-center justify-center rounded-full border border-white/15 px-5 text-sm font-medium text-white transition hover:bg-white/5 disabled:cursor-not-allowed disabled:opacity-45">
               Join room

@@ -1,101 +1,202 @@
 'use client';
 
-import { useState } from 'react';
-import { Player, Room, User } from '@songguessr/shared';
+import { useEffect, useMemo, useState } from 'react';
+import { useRoom } from '@/lib/useRoom';
 import { signInWithSpotify } from '@/lib/supabase';
+import { AnimatePresence, motion } from 'framer-motion';
 import { Button, Card, Chip, Separator } from '@heroui/react';
 
 interface RoomLobbyProps {
   roomCode: string;
+  onGameStarted: (tracks: unknown[]) => void;
 }
 
-const mockRoom: Room = {
-  id: 'room-123',
-  code: 'ABCDEF',
-  host_id: 'user-1',
-  status: 'waiting',
-  settings: {
-    rounds: 10,
-    time_per_round: 30,
-    max_players: 4,
-    allow_skips: false,
-    point_system: 'speed',
-  },
-  created_at: new Date().toISOString(),
-  started_at: null,
-  ended_at: null,
-};
+export default function RoomLobby({ roomCode, onGameStarted }: RoomLobbyProps) {
+  const {
+    room,
+    players,
+    currentUser,
+    isHost,
+    loading,
+    error,
+    hasSpotify,
+    joinRoom,
+    toggleReady,
+    startGame,
+  } = useRoom(roomCode);
 
-const mockPlayers: Player[] = [
-  { id: 'player-1', room_id: 'room-123', user_id: 'user-1', score: 0, is_ready: true, joined_at: new Date().toISOString() },
-  { id: 'player-2', room_id: 'room-123', user_id: 'user-2', score: 0, is_ready: false, joined_at: new Date().toISOString() },
-  { id: 'player-3', room_id: 'room-123', user_id: 'user-3', score: 0, is_ready: true, joined_at: new Date().toISOString() },
-];
-
-const mockUser: User = {
-  id: 'user-1',
-  email: 'player1@example.com',
-  display_name: 'Player One',
-  avatar_url: null,
-  spotify_access_token: null,
-  spotify_refresh_token: null,
-  spotify_expires_at: null,
-  created_at: new Date().toISOString(),
-};
-
-export default function RoomLobby({ roomCode }: RoomLobbyProps) {
-  const [room] = useState<Room>(mockRoom);
-  const [players, setPlayers] = useState<Player[]>(mockPlayers);
-  const [currentUser] = useState<User | null>(mockUser);
   const [isConnectingSpotify, setIsConnectingSpotify] = useState(false);
   const [isReady, setIsReady] = useState(false);
-  const [rounds, setRounds] = useState(String(mockRoom.settings.rounds));
-  const [timePerRound, setTimePerRound] = useState(String(mockRoom.settings.time_per_round));
-  const [maxPlayers, setMaxPlayers] = useState(String(mockRoom.settings.max_players));
-  const [scoring, setScoring] = useState(mockRoom.settings.point_system);
+  const [countdown, setCountdown] = useState<number | null>(null);
+  const [joinBase, setJoinBase] = useState(process.env.NEXT_PUBLIC_APP_URL?.replace(/\/$/, '') ?? '');
 
-  const isHost = currentUser?.id === room.host_id;
   const roomMasterName = currentUser?.display_name ?? 'Roommaster';
-  const readyCount = players.filter((player) => player.is_ready).length;
-  const maxPlayerCount = Number(maxPlayers);
-  const allPlayersReady = readyCount >= 2 && players.every((player) => player.is_ready);
+  const readyCount = players.filter((p) => p.is_ready).length;
+  const maxPlayerCount = (room?.settings?.max_players) ?? 4;
+  const allPlayersReady = readyCount >= 2 && players.every((p) => p.is_ready);
   const readinessPercent = players.length > 0 ? Math.round((readyCount / players.length) * 100) : 0;
   const openSlots = Math.max(maxPlayerCount - players.length, 0);
+  const canStartGame = isHost && hasSpotify && allPlayersReady;
+  const joinUrl = joinBase ? `${joinBase}/room/${roomCode}` : `/room/${roomCode}`;
+  const rounds = room?.settings?.rounds ?? 10;
+  const timePerRound = room?.settings?.time_per_round ?? 30;
+  const scoring = room?.settings?.point_system ?? 'speed';
+
+  const qrUrl = useMemo(() => {
+    if (!joinUrl) return '';
+    return `https://api.qrserver.com/v1/create-qr-code/?size=320x320&margin=16&data=${encodeURIComponent(joinUrl)}`;
+  }, [joinUrl]);
+
+  useEffect(() => {
+    if (!joinBase && typeof window !== 'undefined') {
+      setJoinBase(window.location.origin);
+    }
+  }, [joinBase]);
+
+  // Auto-join room when user is authenticated
+  useEffect(() => {
+    if (currentUser && room && !loading) {
+      const alreadyJoined = players.some((p) => p.user_id === currentUser.id);
+      if (!alreadyJoined) {
+        joinRoom();
+      }
+    }
+  }, [currentUser, room, loading, players, joinRoom]);
+
+  // Set isReady from player data
+  useEffect(() => {
+    if (currentUser) {
+      const me = players.find((p) => p.user_id === currentUser.id);
+      if (me) setIsReady(me.is_ready);
+    }
+  }, [players, currentUser]);
+
+  // Detect when room status changes to 'active' (started by host or real-time update)
+  useEffect(() => {
+    if (room?.status === 'active' && countdown === null) {
+      // Game started by someone else, transition immediately
+      onGameStarted([]);
+    }
+  }, [room?.status, countdown, onGameStarted]);
+
+  // Countdown effect
+  useEffect(() => {
+    if (countdown === null) return;
+
+    if (countdown === 0) {
+      // Trigger game start
+      startGame().then((result) => {
+        setCountdown(null);
+        if (result) {
+          onGameStarted(result.tracks);
+        }
+      });
+      return;
+    }
+
+    const timeout = window.setTimeout(() => {
+      setCountdown((c) => (c === null ? null : c - 1));
+    }, 1000);
+
+    return () => window.clearTimeout(timeout);
+  }, [countdown, startGame, onGameStarted]);
 
   const handleConnectSpotify = () => {
     setIsConnectingSpotify(true);
     const redirectTo = `${window.location.origin}/auth/callback?next=/room/${roomCode}`;
 
-    signInWithSpotify(redirectTo).catch((error) => {
-      console.error('Spotify sign-in failed', error);
+    signInWithSpotify(redirectTo).catch((err) => {
+      console.error('Spotify sign-in failed', err);
       setIsConnectingSpotify(false);
       alert('Failed to start Spotify sign-in. Check your Supabase and Spotify redirect settings.');
     });
   };
 
-  const handleToggleReady = () => {
+  const handleToggleReady = async () => {
     const nextReady = !isReady;
     setIsReady(nextReady);
-    setPlayers((currentPlayers) =>
-      currentPlayers.map((player) =>
-        player.user_id === currentUser?.id ? { ...player, is_ready: nextReady } : player
-      )
-    );
+    await toggleReady(nextReady);
   };
 
   const handleStartGame = () => {
+    if (countdown !== null) return;
+
+    if (!hasSpotify) {
+      alert('Roommaster must connect Spotify before starting the room.');
+      return;
+    }
+
     if (!allPlayersReady) {
       alert('All players must be ready and at least 2 players needed');
       return;
     }
 
-    alert('Game would start now!');
+    setCountdown(5);
   };
 
   const handleCopyCode = async () => {
     await navigator.clipboard.writeText(roomCode);
     alert('Room code copied to clipboard!');
   };
+
+  if (loading) {
+    return (
+      <main className="mx-auto flex min-h-screen w-full max-w-7xl items-center justify-center px-4 py-5 text-white">
+        <Card className="border border-white/10 bg-white/[0.04] shadow-[0_20px_80px_rgba(0,0,0,0.38)]">
+          <Card.Content className="flex flex-col items-center gap-4 p-10">
+            <div className="h-8 w-8 animate-spin rounded-full border-2 border-white/20 border-t-white" />
+            <div className="text-sm text-white/55">Loading room...</div>
+          </Card.Content>
+        </Card>
+      </main>
+    );
+  }
+
+  if (error && !room) {
+    return (
+      <main className="mx-auto flex min-h-screen w-full max-w-7xl items-center justify-center px-4 py-5 text-white">
+        <Card className="border border-white/10 bg-white/[0.04] shadow-[0_20px_80px_rgba(0,0,0,0.38)]">
+          <Card.Content className="flex flex-col items-center gap-4 p-10 text-center">
+            <div className="text-4xl">🚫</div>
+            <div>
+              <div className="text-xl font-semibold text-white">Room not found</div>
+              <p className="mt-2 text-sm text-white/55">{error}</p>
+            </div>
+            <Button variant="primary" className="bg-white text-black" onPress={() => window.location.href = '/'}>
+              Back to home
+            </Button>
+          </Card.Content>
+        </Card>
+      </main>
+    );
+  }
+
+  if (!currentUser) {
+    return (
+      <main className="mx-auto flex min-h-screen w-full max-w-7xl items-center justify-center px-4 py-5 text-white">
+        <Card className="border border-white/10 bg-white/[0.04] shadow-[0_20px_80px_rgba(0,0,0,0.38)]">
+          <Card.Content className="flex flex-col items-center gap-5 p-10 text-center">
+            <Chip variant="soft" className="border border-emerald-400/20 bg-emerald-400/10 text-emerald-300">
+              Room {roomCode}
+            </Chip>
+            <div>
+              <div className="text-2xl font-semibold text-white">Sign in to join</div>
+              <p className="mt-2 max-w-sm text-sm text-white/55">
+                Connect your Spotify account to join room {roomCode} and start playing.
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={handleConnectSpotify}
+              className="inline-flex h-12 items-center justify-center rounded-full bg-white px-6 text-sm font-medium text-black transition hover:scale-[1.01] active:scale-[0.99]"
+            >
+              {isConnectingSpotify ? 'Connecting...' : 'Sign in with Spotify'}
+            </button>
+          </Card.Content>
+        </Card>
+      </main>
+    );
+  }
 
   return (
     <main className="mx-auto flex min-h-screen w-full max-w-7xl flex-col gap-8 px-4 py-5 text-white sm:px-6 lg:px-8">
@@ -134,6 +235,35 @@ export default function RoomLobby({ roomCode }: RoomLobbyProps) {
 
       <div className="grid gap-6 xl:grid-cols-[1.25fr_0.75fr]">
         <div className="space-y-6">
+          {/* Game settings (display only, settings come from room creation) */}
+          <Card className="border border-white/10 bg-white/[0.04] shadow-[0_20px_80px_rgba(0,0,0,0.38)]">
+            <Card.Header className="px-6 pt-6">
+              <div>
+                <h2 className="text-xl font-semibold tracking-[-0.04em] text-white">Game settings</h2>
+                <p className="mt-1 text-sm text-white/50">Set by the room host.</p>
+              </div>
+            </Card.Header>
+            <Card.Content className="grid gap-4 px-6 pb-6 md:grid-cols-4">
+              <div className="space-y-1 rounded-2xl border border-white/10 bg-black/20 p-3">
+                <div className="text-[0.65rem] uppercase tracking-[0.28em] text-white/40">Rounds</div>
+                <div className="text-sm font-medium text-white">{rounds}</div>
+              </div>
+              <div className="space-y-1 rounded-2xl border border-white/10 bg-black/20 p-3">
+                <div className="text-[0.65rem] uppercase tracking-[0.28em] text-white/40">Time</div>
+                <div className="text-sm font-medium text-white">{timePerRound}s</div>
+              </div>
+              <div className="space-y-1 rounded-2xl border border-white/10 bg-black/20 p-3">
+                <div className="text-[0.65rem] uppercase tracking-[0.28em] text-white/40">Limit</div>
+                <div className="text-sm font-medium text-white">{maxPlayerCount} players</div>
+              </div>
+              <div className="space-y-1 rounded-2xl border border-white/10 bg-black/20 p-3">
+                <div className="text-[0.65rem] uppercase tracking-[0.28em] text-white/40">Score</div>
+                <div className="text-sm font-medium text-white">{scoring === 'speed' ? 'Speed based' : 'Correct only'}</div>
+              </div>
+            </Card.Content>
+          </Card>
+
+          {/* Players */}
           <Card className="border border-white/10 bg-white/[0.04] shadow-[0_20px_80px_rgba(0,0,0,0.38)]">
             <Card.Header className="flex flex-col items-start gap-3 px-6 pt-6">
               <div className="flex w-full items-center justify-between gap-3">
@@ -151,11 +281,9 @@ export default function RoomLobby({ roomCode }: RoomLobbyProps) {
                 <div className="h-full rounded-full bg-white" style={{ width: `${readinessPercent}%` }} />
               </div>
             </Card.Header>
-
             <Card.Content className="space-y-3 px-6 pb-6">
               {players.map((player, index) => {
                 const isCurrentUser = player.user_id === currentUser?.id;
-
                 return (
                   <div
                     key={player.id}
@@ -167,7 +295,7 @@ export default function RoomLobby({ roomCode }: RoomLobbyProps) {
                     <div className="min-w-0 flex-1">
                       <div className="flex flex-wrap items-center gap-2">
                         <div className="font-medium text-white">{isCurrentUser ? 'You' : `Player ${index + 1}`}</div>
-                        {player.user_id === room.host_id && (
+                        {player.user_id === room?.host_id && (
                           <Chip variant="soft" className="border border-emerald-400/20 bg-emerald-400/10 text-emerald-300">
                             Roommaster
                           </Chip>
@@ -186,100 +314,17 @@ export default function RoomLobby({ roomCode }: RoomLobbyProps) {
                   </div>
                 );
               })}
-            </Card.Content>
-          </Card>
-
-          <Card className="border border-white/10 bg-white/[0.04] shadow-none">
-            <Card.Header className="px-6 pt-6">
-              <div>
-                <h2 className="text-xl font-semibold tracking-[-0.04em] text-white">Music access</h2>
-                <p className="mt-1 text-sm text-white/50">Connect Spotify once so the room can fetch top tracks.</p>
-              </div>
-            </Card.Header>
-            <Card.Content className="space-y-4 px-6 pb-6">
-              <p className="max-w-3xl text-sm leading-6 text-white/58">
-                We only request read-only access to your top tracks and recently played songs.
-                The room stays quiet so the game state remains the focus.
-              </p>
-              <div className="flex flex-wrap gap-3">
-                <Button
-                  variant="primary"
-                  className="bg-white text-black"
-                  onPress={handleConnectSpotify}
-                >
-                  {isConnectingSpotify ? 'Connecting' : 'Connect Spotify'}
-                </Button>
-                <Chip variant="soft" className="border border-white/10 bg-white/5 text-white/55">
-                  read only
-                </Chip>
-              </div>
-            </Card.Content>
-          </Card>
-
-          {isHost && (
-            <Card className="border border-white/10 bg-white/[0.04] shadow-none">
-              <Card.Header className="px-6 pt-6">
-                <div>
-                  <h2 className="text-xl font-semibold tracking-[-0.04em] text-white">Game settings</h2>
-                  <p className="mt-1 text-sm text-white/50">Host controls, kept minimal.</p>
+              {players.length === 0 && (
+                <div className="py-8 text-center text-sm text-white/40">
+                  No players yet. Share the room code to invite friends.
                 </div>
-              </Card.Header>
-              <Card.Content className="grid gap-4 px-6 pb-6 md:grid-cols-4">
-                <label className="space-y-2 text-sm text-white/60">
-                  <span>Rounds</span>
-                  <select
-                    value={rounds}
-                    onChange={(event) => setRounds(event.target.value)}
-                    className="w-full rounded-2xl border border-white/10 bg-black/30 px-4 py-3 text-white outline-none transition focus:border-white/30"
-                  >
-                    <option>10</option>
-                    <option>15</option>
-                    <option>20</option>
-                  </select>
-                </label>
-                <label className="space-y-2 text-sm text-white/60">
-                  <span>Time per round</span>
-                  <select
-                    value={timePerRound}
-                    onChange={(event) => setTimePerRound(event.target.value)}
-                    className="w-full rounded-2xl border border-white/10 bg-black/30 px-4 py-3 text-white outline-none transition focus:border-white/30"
-                  >
-                    <option>30</option>
-                    <option>45</option>
-                    <option>60</option>
-                  </select>
-                </label>
-                <label className="space-y-2 text-sm text-white/60">
-                  <span>Player limit</span>
-                  <select
-                    value={maxPlayers}
-                    onChange={(event) => setMaxPlayers(event.target.value)}
-                    className="w-full rounded-2xl border border-white/10 bg-black/30 px-4 py-3 text-white outline-none transition focus:border-white/30"
-                  >
-                    <option>2</option>
-                    <option>3</option>
-                    <option>4</option>
-                    <option>5</option>
-                    <option>6</option>
-                  </select>
-                </label>
-                <label className="space-y-2 text-sm text-white/60">
-                  <span>Scoring</span>
-                  <select
-                    value={scoring}
-                    onChange={(event) => setScoring(event.target.value as Room['settings']['point_system'])}
-                    className="w-full rounded-2xl border border-white/10 bg-black/30 px-4 py-3 text-white outline-none transition focus:border-white/30"
-                  >
-                    <option value="speed">Speed based</option>
-                    <option value="correct_only">Correct only</option>
-                  </select>
-                </label>
-              </Card.Content>
-            </Card>
-          )}
+              )}
+            </Card.Content>
+          </Card>
         </div>
 
         <div className="space-y-6">
+          {/* Room status */}
           <Card className="border border-white/10 bg-white/[0.04] shadow-none">
             <Card.Header className="px-6 pt-6">
               <div>
@@ -300,7 +345,7 @@ export default function RoomLobby({ roomCode }: RoomLobbyProps) {
               <div className="flex items-center justify-between">
                 <span className="text-sm text-white/50">Status</span>
                 <Chip variant="primary" className="bg-white text-black">
-                  {room.status}
+                  {room?.status ?? 'waiting'}
                 </Chip>
               </div>
               <Separator className="bg-white/10" />
@@ -325,6 +370,7 @@ export default function RoomLobby({ roomCode }: RoomLobbyProps) {
             </Card.Content>
           </Card>
 
+          {/* Ready up */}
           <Card className="border border-white/10 bg-white/[0.04] shadow-none">
             <Card.Header className="px-6 pt-6">
               <div>
@@ -352,12 +398,34 @@ export default function RoomLobby({ roomCode }: RoomLobbyProps) {
                 size="lg"
                 className="w-full bg-white text-black"
                 onPress={handleStartGame}
-                isDisabled={!allPlayersReady || !isHost}
+                isDisabled={!canStartGame || countdown !== null}
               >
-                {isHost ? 'Start game' : 'Waiting for host'}
+                {countdown !== null
+                  ? 'Starting...'
+                  : !hasSpotify && isHost
+                    ? 'Connect Spotify first'
+                    : isHost
+                      ? 'Start game'
+                      : 'Waiting for host'}
               </Button>
 
-              {!allPlayersReady && (
+              {isHost && !hasSpotify && (
+                <button
+                  type="button"
+                  onClick={handleConnectSpotify}
+                  className="inline-flex h-11 w-full items-center justify-center rounded-2xl border border-emerald-400/20 bg-emerald-400/10 px-4 text-sm font-medium text-emerald-300 transition hover:bg-emerald-400/15"
+                >
+                  {isConnectingSpotify ? 'Connecting to Spotify' : 'Connect Spotify first'}
+                </button>
+              )}
+
+              {!hasSpotify && !isHost && (
+                <p className="text-center text-sm text-white/45">
+                  Waiting for the roommaster to connect Spotify.
+                </p>
+              )}
+
+              {isHost && hasSpotify && !allPlayersReady && (
                 <p className="text-center text-sm text-white/45">
                   {players.length < 2 ? 'Need at least 2 players to start' : 'All players must be ready'}
                 </p>
@@ -365,26 +433,83 @@ export default function RoomLobby({ roomCode }: RoomLobbyProps) {
             </Card.Content>
           </Card>
 
+          {/* QR code */}
           <Card className="border border-white/10 bg-white/[0.04] shadow-none">
             <Card.Header className="px-6 pt-6">
               <div>
                 <h2 className="text-xl font-semibold tracking-[-0.04em] text-white">Mobile join</h2>
-                <p className="mt-1 text-sm text-white/50">A placeholder for a mobile handoff.</p>
+                <p className="mt-1 text-sm text-white/50">Scan this code to open the room on mobile and join directly.</p>
               </div>
             </Card.Header>
-            <Card.Content className="space-y-4 px-6 pb-6">
-              <div className="flex items-center justify-center rounded-3xl border border-dashed border-white/15 bg-black/20 p-8">
-                <div className="grid h-36 w-36 place-items-center rounded-2xl border border-white/10 bg-white/[0.03] font-mono text-sm tracking-[0.35em] text-white/35">
-                  QR
-                </div>
+            <Card.Content className="space-y-5 px-6 pb-6">
+              <div className="flex items-center justify-center rounded-[2rem] border border-dashed border-white/15 bg-black/20 p-8">
+                {qrUrl ? (
+                  <div className="rounded-[1.5rem] bg-white p-4 shadow-[0_0_0_1px_rgba(255,255,255,0.08)]">
+                    <img src={qrUrl} alt={`QR code to join room ${roomCode}`} className="h-56 w-56 rounded-xl sm:h-64 sm:w-64" />
+                  </div>
+                ) : (
+                  <div className="grid h-56 w-56 place-items-center rounded-[1.5rem] border border-white/10 bg-white/[0.03] text-sm text-white/35 sm:h-64 sm:w-64">
+                    QR loading
+                  </div>
+                )}
               </div>
-              <div className="text-center text-sm text-white/50">
-                Or visit <span className="font-mono text-white/75">songguessr.app/join/{roomCode}</span>
+              <div className="space-y-2 text-center">
+                <div className="text-sm font-medium text-white">Tap or scan from mobile</div>
+                <div className="text-sm text-white/50">
+                  Or visit <span className="font-mono text-white/75">{joinUrl || `/${roomCode}`}</span>
+                </div>
               </div>
             </Card.Content>
           </Card>
         </div>
       </div>
+
+      {/* Countdown overlay */}
+      <AnimatePresence>
+        {countdown !== null && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-50 grid place-items-center bg-black/55 px-6 backdrop-blur-md"
+          >
+            <motion.div
+              key={countdown}
+              initial={{ scale: 0.85, opacity: 0, y: 12 }}
+              animate={{ scale: 1, opacity: 1, y: 0 }}
+              exit={{ scale: 0.9, opacity: 0, y: -10 }}
+              transition={{ duration: 0.35, ease: 'easeOut' }}
+              className="flex min-w-[280px] flex-col items-center gap-5 rounded-[2rem] border border-white/10 bg-[#0d0d0d]/80 px-10 py-12 text-center shadow-[0_30px_120px_rgba(0,0,0,0.55)]"
+            >
+              <div className="text-[0.65rem] uppercase tracking-[0.45em] text-white/45">Starting game</div>
+              <div className="relative grid place-items-center">
+                <div className="absolute inset-0 rounded-full border border-white/10 bg-white/5 blur-2xl" />
+                <motion.div
+                  key={`count-${countdown}`}
+                  initial={{ scale: 0.72, opacity: 0 }}
+                  animate={{ scale: 1, opacity: 1 }}
+                  transition={{ duration: 0.25 }}
+                  className="relative font-mono text-[6.5rem] font-bold tracking-[-0.08em] text-white sm:text-8xl"
+                >
+                  {countdown}
+                </motion.div>
+              </div>
+              <div className="h-1.5 w-36 overflow-hidden rounded-full bg-white/10">
+                <motion.div
+                  key={`bar-${countdown}`}
+                  initial={{ width: '100%' }}
+                  animate={{ width: `${Math.max(countdown, 0) * 20}%` }}
+                  transition={{ duration: 0.9, ease: 'easeOut' }}
+                  className="h-full rounded-full bg-white"
+                />
+              </div>
+              <p className="max-w-xs text-sm leading-6 text-white/55">
+                Get ready. The round is about to start.
+              </p>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </main>
   );
 }

@@ -1,4 +1,4 @@
-import RoomLobby from '@/components/RoomLobby';
+import RoomClient from '@/components/RoomClient';
 
 interface RoomPageProps {
   params: Promise<{ code: string }>;
@@ -6,5 +6,5 @@ interface RoomPageProps {
 
 export default async function RoomPage({ params }: RoomPageProps) {
   const { code } = await params;
-  return <RoomLobby roomCode={code} />;
+  return <RoomClient roomCode={code} />;
 }

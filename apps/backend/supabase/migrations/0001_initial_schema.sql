@@ -23,6 +23,7 @@ CREATE TABLE IF NOT EXISTS public.rooms (
   settings JSONB NOT NULL DEFAULT '{
     "rounds": 10,
     "time_per_round": 30,
+    "max_players": 4,
     "allow_skips": false,
     "point_system": "speed"
   }',
