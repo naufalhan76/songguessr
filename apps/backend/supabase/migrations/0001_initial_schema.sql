@@ -111,16 +111,8 @@ CREATE POLICY "Users can update own profile" ON public.users
 
 -- Rooms: host and room members can read, host can create/update
 DROP POLICY IF EXISTS "Room members can view rooms" ON public.rooms;
-CREATE POLICY "Room members can view rooms" ON public.rooms
-  FOR SELECT USING (
-    auth.uid() = host_id
-    OR EXISTS (
-      SELECT 1
-      FROM public.players p
-      WHERE p.room_id = rooms.id
-        AND p.user_id = auth.uid()
-    )
-  );
+CREATE POLICY "Authenticated users can view rooms" ON public.rooms
+  FOR SELECT USING (auth.role() = 'authenticated');
 
 DROP POLICY IF EXISTS "Authenticated users can create rooms" ON public.rooms;
 CREATE POLICY "Authenticated users can create rooms" ON public.rooms
@@ -133,22 +125,8 @@ CREATE POLICY "Host can update own room" ON public.rooms
 
 -- Players: room members can view, users can join/ready themselves
 DROP POLICY IF EXISTS "Room members can view players" ON public.players;
-CREATE POLICY "Room members can view players" ON public.players
-  FOR SELECT USING (
-    auth.uid() = user_id
-    OR EXISTS (
-      SELECT 1
-      FROM public.rooms r
-      WHERE r.id = players.room_id
-        AND r.host_id = auth.uid()
-    )
-    OR EXISTS (
-      SELECT 1
-      FROM public.players p
-      WHERE p.room_id = players.room_id
-        AND p.user_id = auth.uid()
-    )
-  );
+CREATE POLICY "Authenticated users can view players" ON public.players
+  FOR SELECT USING (auth.role() = 'authenticated');
 
 DROP POLICY IF EXISTS "Users can join as themselves" ON public.players;
 CREATE POLICY "Users can join as themselves" ON public.players
@@ -165,23 +143,8 @@ CREATE POLICY "Authenticated users can view tracks" ON public.tracks
   FOR SELECT USING (auth.role() = 'authenticated');
 
 DROP POLICY IF EXISTS "Room members can view game rounds" ON public.game_rounds;
-CREATE POLICY "Room members can view game rounds" ON public.game_rounds
-  FOR SELECT USING (
-    EXISTS (
-      SELECT 1
-      FROM public.rooms r
-      WHERE r.id = game_rounds.room_id
-        AND (
-          r.host_id = auth.uid()
-          OR EXISTS (
-            SELECT 1
-            FROM public.players p
-            WHERE p.room_id = r.id
-              AND p.user_id = auth.uid()
-          )
-        )
-    )
-  );
+CREATE POLICY "Authenticated users can view game rounds" ON public.game_rounds
+  FOR SELECT USING (auth.role() = 'authenticated');
 
 DROP POLICY IF EXISTS "Room host can manage game rounds" ON public.game_rounds;
 CREATE POLICY "Room host can manage game rounds" ON public.game_rounds
@@ -195,31 +158,8 @@ CREATE POLICY "Room host can manage game rounds" ON public.game_rounds
   );
 
 DROP POLICY IF EXISTS "Room members can view player answers" ON public.player_answers;
-CREATE POLICY "Room members can view player answers" ON public.player_answers
-  FOR SELECT USING (
-    EXISTS (
-      SELECT 1
-      FROM public.players p
-      JOIN public.game_rounds gr ON gr.id = player_answers.round_id
-      WHERE p.id = player_answers.player_id
-        AND p.room_id = gr.room_id
-        AND (
-          p.user_id = auth.uid()
-          OR EXISTS (
-            SELECT 1
-            FROM public.rooms r
-            WHERE r.id = gr.room_id
-              AND r.host_id = auth.uid()
-          )
-          OR EXISTS (
-            SELECT 1
-            FROM public.players room_player
-            WHERE room_player.room_id = p.room_id
-              AND room_player.user_id = auth.uid()
-          )
-        )
-    )
-  );
+CREATE POLICY "Authenticated users can view player answers" ON public.player_answers
+  FOR SELECT USING (auth.role() = 'authenticated');
 
 DROP POLICY IF EXISTS "Players can submit their own answers" ON public.player_answers;
 CREATE POLICY "Players can submit their own answers" ON public.player_answers
