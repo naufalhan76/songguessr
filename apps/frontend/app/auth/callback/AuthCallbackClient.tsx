@@ -18,49 +18,70 @@ export default function AuthCallbackClient({ nextPath, code }: AuthCallbackClien
 
   useEffect(() => {
     let cancelled = false;
+    console.log('[Auth Debug] AuthCallbackClient mounted', {
+      code,
+      nextPath,
+      hash: typeof window !== 'undefined' ? window.location.hash : null,
+      href: typeof window !== 'undefined' ? window.location.href : null,
+    });
 
     const finalizeAuth = async () => {
       // Prevent double execution in React Strict Mode
-      if (exchangeAttempted.current) return;
+      if (exchangeAttempted.current) {
+        console.log('[Auth Debug] Exchange already attempted, skipping.');
+        return;
+      }
       exchangeAttempted.current = true;
+      console.log('[Auth Debug] Starting finalizeAuth execution');
 
       // Ensure that we explicitly wait for the exchange if PKCE (code) is present
       if (code) {
-        const { error } = await supabase.auth.exchangeCodeForSession(code);
+        console.log('[Auth Debug] Code found in URL, attempting exchange CodeForSession...');
+        const { error, data } = await supabase.auth.exchangeCodeForSession(code);
         if (error) {
-          console.error('Failed to exchange auth code:', error);
+          console.error('[Auth Debug] Failed to exchange auth code:', error);
           if (!cancelled) {
             setMessage('Invalid or expired login link. Retrying...');
           }
+        } else {
+          console.log('[Auth Debug] exchangeCodeForSession succeeded!', data);
         }
       }
 
+      console.log('[Auth Debug] Calling getSession() immediately...');
       // If we made it here (or if it was implicit flow without code), check session
       const { data: { session }, error } = await supabase.auth.getSession();
+      console.log('[Auth Debug] getSession() response:', { session: session ? 'exists' : 'null', error });
       
       if (cancelled) return;
 
       if (error) {
-        console.error('Failed to get session:', error);
+        console.error('[Auth Debug] Failed to get session:', error);
         setMessage('Sign-in failed. Redirecting...');
         setTimeout(() => router.replace('/'), 2000);
         return;
       }
 
       if (session) {
+        console.log('[Auth Debug] Valid session found immediately, redirecting to', nextPath);
         router.replace(nextPath);
         return;
       }
 
       // If there's still no session, wait a bit for implicit hash parsing 
       // via onAuthStateChange which might be happening concurrently
+      console.log('[Auth Debug] No session found yet, waiting for onAuthStateChange or timeout...');
       setMessage('Finalizing...');
       setTimeout(() => {
+        console.log('[Auth Debug] 3-second timeout hit. Re-checking session.');
         if (!cancelled) {
-          supabase.auth.getSession().then(({ data }) => {
+          supabase.auth.getSession().then(({ data, error }) => {
+            console.log('[Auth Debug] Timeout getSession() result:', { session: !!data.session, error });
             if (data.session) {
+              console.log('[Auth Debug] Session finally found, redirecting!');
               router.replace(nextPath);
             } else {
+              console.error('[Auth Debug] No session after 3 seconds timeout. Redirecting home.');
               setMessage('Sign-in took too long. Returning home...');
               setTimeout(() => router.replace('/'), 2000);
             }
@@ -71,7 +92,9 @@ export default function AuthCallbackClient({ nextPath, code }: AuthCallbackClien
 
     // Also listen for change immediately in case it happens while we wait
     const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+      console.log('[Auth Debug] onAuthStateChange fired!', { event, session: !!session });
       if (session && !cancelled) {
+        console.log('[Auth Debug] Valid session received from onAuthStateChange event, redirecting to', nextPath);
         router.replace(nextPath);
       }
     });
@@ -79,6 +102,7 @@ export default function AuthCallbackClient({ nextPath, code }: AuthCallbackClien
     finalizeAuth();
 
     return () => {
+      console.log('[Auth Debug] AuthCallbackClient unmounting');
       cancelled = true;
       subscription.unsubscribe();
     };
