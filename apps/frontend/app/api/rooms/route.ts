@@ -22,6 +22,30 @@ export async function POST(request: NextRequest) {
       point_system: body.point_system ?? 'speed',
     };
 
+    // Ensure the user exists in public.users (service role bypasses RLS)
+    const { data: existingUser } = await supabase
+      .from('users')
+      .select('id')
+      .eq('id', hostId)
+      .single();
+
+    if (!existingUser) {
+      // Create a minimal user record so the FK constraint is satisfied
+      const { error: userError } = await supabase
+        .from('users')
+        .upsert({
+          id: hostId,
+          email: body.email || 'unknown@spotify.user',
+          display_name: body.display_name || 'Spotify User',
+          avatar_url: body.avatar_url || null,
+        });
+
+      if (userError) {
+        console.error('Failed to create user record', userError);
+        return NextResponse.json({ success: false, error: 'Failed to create user profile: ' + userError.message }, { status: 500 });
+      }
+    }
+
     // Insert room
     const { data: room, error: roomError } = await supabase
       .from('rooms')
