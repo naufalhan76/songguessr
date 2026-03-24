@@ -17,47 +17,48 @@ export default function AuthCallbackClient({ nextPath, code }: AuthCallbackClien
   useEffect(() => {
     let cancelled = false;
 
-    const finalizeSession = async () => {
-      if (code) {
-        const { error } = await supabase.auth.exchangeCodeForSession(code);
+    // First attempt to exchange code if PKCE flow is used
+    if (code) {
+      supabase.auth.exchangeCodeForSession(code).then(({ error }) => {
+        if (error) console.error('Failed to exchange auth code', error);
+      });
+    }
 
-        if (cancelled) {
-          return;
-        }
-
-        if (!error) {
-          router.replace(nextPath);
-          return;
-        }
-
-        console.error('Failed to exchange auth code', error);
+    // Subscribe to auth state changes to detect when the session is ready
+    // (useful for implicit grant where tokens are in the URL hash)
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+      if (cancelled) return;
+      
+      if (session) {
+        router.replace(nextPath);
       }
+    });
 
-      const { data, error } = await supabase.auth.getSession();
-
-      if (cancelled) {
-        return;
-      }
-
+    // Fallback: check session immediately just in case it's already there
+    supabase.auth.getSession().then(({ data: { session }, error }) => {
+      if (cancelled) return;
+      
       if (error) {
         console.error('Failed to load session', error);
         setMessage('Sign-in failed. Redirecting to the home page...');
         setTimeout(() => router.replace('/'), 1500);
-        return;
+      } else if (session) {
+        router.replace(nextPath);
+      } else {
+        // If no session yet, wait for onAuthStateChange to fire.
+        // We set a timeout as a fail-safe in case auth fails silently.
+        setTimeout(() => {
+          if (!cancelled) {
+            setMessage('Sign-in took too long. Returning home...');
+            setTimeout(() => router.replace('/'), 1500);
+          }
+        }, 10000); // 10 second timeout
       }
+    });
 
-      if (!data.session) {
-        setMessage('Completing sign-in...');
-        setTimeout(() => router.replace('/'), 5000);
-        return;
-      }
-
-      router.replace(nextPath);
-    };
-
-    finalizeSession();
     return () => {
       cancelled = true;
+      subscription.unsubscribe();
     };
   }, [code, nextPath, router]);
 
