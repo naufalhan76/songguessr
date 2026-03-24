@@ -11,27 +11,37 @@ export default function AuthCallbackPage() {
 
   useEffect(() => {
     const nextPath = searchParams.get('next') || '/';
-    let fallbackTimeout: ReturnType<typeof setTimeout> | null = null;
-
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
-      if (session) {
-        router.replace(nextPath);
-      }
-    });
+    const code = searchParams.get('code');
+    let cancelled = false;
 
     const finalizeSession = async () => {
+      if (code) {
+        const { error } = await supabase.auth.exchangeCodeForSession(code);
+
+        if (cancelled) {
+          return;
+        }
+
+        if (!error) {
+          router.replace(nextPath);
+          return;
+        }
+
+        console.error('Failed to exchange auth code', error);
+      }
+
       const { data, error } = await supabase.auth.getSession();
 
       if (error) {
         console.error('Failed to load session', error);
         setMessage('Sign-in failed. Redirecting to the home page...');
-        fallbackTimeout = setTimeout(() => router.replace('/'), 1500);
+        setTimeout(() => router.replace('/'), 1500);
         return;
       }
 
       if (!data.session) {
         setMessage('Completing sign-in...');
-        fallbackTimeout = setTimeout(() => router.replace('/'), 5000);
+        setTimeout(() => router.replace('/'), 5000);
         return;
       }
 
@@ -40,10 +50,7 @@ export default function AuthCallbackPage() {
 
     finalizeSession();
     return () => {
-      if (fallbackTimeout) {
-        clearTimeout(fallbackTimeout);
-      }
-      subscription.unsubscribe();
+      cancelled = true;
     };
   }, [router, searchParams]);
 
