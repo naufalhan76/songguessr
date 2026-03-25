@@ -18,7 +18,10 @@ interface RoomSongEntry {
   id: string;
   player_id: string;
   player_name: string;
-  track: Track;
+  track: Track | null;
+  masked_label: string;
+  masked_slot: number;
+  order: number;
   added_at: string;
 }
 
@@ -91,12 +94,12 @@ export default function SongSelection({
 
   // Fetch room songs
   const fetchRoomSongs = useCallback(async () => {
-    const res = await fetch(`/api/rooms/${roomCode}/songs`);
+    const res = await fetch(`/api/rooms/${roomCode}/songs?player_id=${encodeURIComponent(currentPlayerId)}`);
     const json = await res.json();
     if (json.success) {
       setRoomSongs(json.data);
     }
-  }, [roomCode]);
+  }, [currentPlayerId, roomCode]);
 
   useEffect(() => {
     fetchRoomSongs();
@@ -187,6 +190,9 @@ export default function SongSelection({
       if (!json.success) {
         alert(json.error);
       } else {
+        if (json.data?.replacement_message) {
+          alert(json.data.replacement_message);
+        }
         await fetchRoomSongs();
       }
     } catch (e) {
@@ -263,7 +269,7 @@ export default function SongSelection({
 
   const timerColor = timeRemaining <= 30 ? 'text-red-400' : timeRemaining <= 60 ? 'text-amber-400' : 'text-white';
   const timerBarWidth = (timeRemaining / (selectionTime * 60)) * 100;
-  const alreadyAdded = new Set(roomSongs.map((rs) => rs.track?.spotify_id));
+  const alreadyAdded = new Set(roomSongs.map((rs) => rs.track?.spotify_id).filter(Boolean));
 
   return (
     <main className="mx-auto flex min-h-screen w-full max-w-7xl flex-col gap-6 px-4 py-5 text-white sm:px-6 lg:px-8">
@@ -509,17 +515,25 @@ export default function SongSelection({
                     key={rs.id}
                     className="flex items-center gap-3 rounded-lg border border-white/5 bg-black/15 p-2"
                   >
-                    {rs.track?.album_art_url && (
+                    {rs.track?.album_art_url ? (
                       <img
                         src={rs.track.album_art_url}
                         alt=""
                         className="h-8 w-8 shrink-0 rounded-md object-cover"
                       />
+                    ) : (
+                      <div className="grid h-8 w-8 shrink-0 place-items-center rounded-md border border-white/10 bg-white/5 text-[0.6rem] font-bold text-white/40">
+                        #{rs.masked_slot}
+                      </div>
                     )}
                     <div className="min-w-0 flex-1">
-                      <div className="truncate text-xs font-medium text-white">{rs.track?.title}</div>
+                      <div className="truncate text-xs font-medium text-white">
+                        {rs.player_id === currentPlayerId ? rs.track?.title : rs.masked_label}
+                      </div>
                       <div className="truncate text-[0.65rem] text-white/40">
-                        by {rs.player_name}
+                        {rs.player_id === currentPlayerId
+                          ? rs.track?.artists?.join(', ')
+                          : 'Title hidden until the match starts'}
                       </div>
                     </div>
                   </div>

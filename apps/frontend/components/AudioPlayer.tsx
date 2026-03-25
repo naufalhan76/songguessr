@@ -2,6 +2,7 @@
 
 import { useRef, useState, useEffect, useCallback } from 'react';
 import YouTube, { YouTubePlayer, YouTubeEvent } from 'react-youtube';
+import { isAudioPlaybackPrimed } from '@/lib/audio';
 
 interface AudioPlayerProps {
   src: string | null;
@@ -34,6 +35,7 @@ export default function AudioPlayer({
   const [currentTime, setCurrentTime] = useState(0);
   const [isYoutubeReady, setIsYoutubeReady] = useState(false);
   const [autoplayBlocked, setAutoplayBlocked] = useState(false);
+  const [audioPrimed] = useState(() => isAudioPlaybackPrimed());
 
   const forceYoutube = true;
   const isYoutubeMode = forceYoutube ? !!youtubeId : (!src && !!youtubeId);
@@ -298,7 +300,9 @@ export default function AudioPlayer({
         <div className="rounded-2xl border border-amber-400/20 bg-amber-400/10 p-4 text-center">
           <div className="text-sm font-semibold text-white">Tap once to start audio</div>
           <p className="mt-1 text-xs leading-5 text-amber-100/75">
-            Some mobile browsers block autoplay with sound. One tap will start the music.
+            {audioPrimed
+              ? 'This device was already primed in the lobby, but this browser still wants one extra tap for YouTube.'
+              : 'Some mobile browsers block autoplay with sound. One tap will start the music.'}
           </p>
           <button
             type="button"

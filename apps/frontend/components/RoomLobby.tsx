@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState, useRef, useCallback } from 'react';
 import { useRoom } from '@/lib/useRoom';
+import { isAudioPlaybackPrimed, primeAudioPlayback } from '@/lib/audio';
 import { clearRoomPlayerId, createGuestSession, getGuestSession, setRoomPlayerId, supabase } from '@/lib/supabase';
 import { AnimatePresence, motion } from 'framer-motion';
 import { Button, Card, Chip, Separator } from '@heroui/react';
@@ -49,6 +50,7 @@ export default function RoomLobby({ roomCode, onSelectionStarted, onPlayerIdSet 
   const nameInputRef = useRef<HTMLInputElement>(null);
   const lobbyChannelRef = useRef<ReturnType<typeof supabase.channel> | null>(null);
   const [isLeaving, setIsLeaving] = useState(false);
+  const [audioPrimed, setAudioPrimed] = useState(() => isAudioPlaybackPrimed());
 
   const readyCount = players.filter((p) => p.is_ready).length;
   const maxPlayerCount = (room?.settings?.max_players) ?? 4;
@@ -161,7 +163,14 @@ export default function RoomLobby({ roomCode, onSelectionStarted, onPlayerIdSet 
   const handleToggleReady = async () => {
     const nextReady = !isReady;
     setIsReady(nextReady);
+
+    const primePromise = nextReady ? primeAudioPlayback() : Promise.resolve(false);
     await toggleReady(nextReady);
+
+    const primed = await primePromise;
+    if (primed) {
+      setAudioPrimed(true);
+    }
   };
 
   const handleStartSelection = () => {
@@ -693,6 +702,21 @@ export default function RoomLobby({ roomCode, onSelectionStarted, onPlayerIdSet 
                   </div>
                 </div>
               </button>
+
+              <div className={`rounded-2xl border px-4 py-3 text-sm ${
+                audioPrimed
+                  ? 'border-emerald-400/20 bg-emerald-400/10 text-emerald-200'
+                  : 'border-amber-400/20 bg-amber-400/10 text-amber-100/85'
+              }`}>
+                <div className="font-semibold text-white">
+                  {audioPrimed ? 'Sound unlocked for this device' : 'Prime audio before the match'}
+                </div>
+                <p className={`mt-1 leading-6 ${audioPrimed ? 'text-emerald-100/75' : 'text-amber-100/75'}`}>
+                  {audioPrimed
+                    ? 'Android autoplay should have a better chance now. If the browser still blocks YouTube later, one tap on Start sound will resume it.'
+                    : 'Tap Ready once on this device before the match starts. We use that gesture to help Android allow music playback when the round begins.'}
+                </p>
+              </div>
 
               <button
                 type="button"

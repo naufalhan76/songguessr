@@ -2,6 +2,7 @@
 
 import { useEffect, useState, useCallback, useRef } from 'react';
 import { Track, Room, Player } from '@songguessr/shared';
+import { isAudioPlaybackPrimed } from '@/lib/audio';
 import { clearRoomPlayerId, supabase } from '@/lib/supabase';
 import AudioPlayer from '@/components/AudioPlayer';
 import { AnimatePresence, motion } from 'framer-motion';
@@ -23,7 +24,15 @@ interface RoundData {
   track_id: string;
 }
 
-export default function GamePlay({ room, players, currentPlayerId, roomCode, tracks, distractorTracks = [], onGameEnd }: GamePlayProps) {
+export default function GamePlay({
+  room,
+  players,
+  currentPlayerId,
+  roomCode,
+  tracks,
+  distractorTracks = [],
+  onGameEnd,
+}: GamePlayProps) {
   const [rounds, setRounds] = useState<RoundData[]>([]);
   const [currentRoundIndex, setCurrentRoundIndex] = useState(0);
   const [timeRemaining, setTimeRemaining] = useState(room.settings.time_per_round);
@@ -34,16 +43,20 @@ export default function GamePlay({ room, players, currentPlayerId, roomCode, tra
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [roundScores, setRoundScores] = useState<Record<string, number>>({});
   const [showingResults, setShowingResults] = useState(false);
+  const [answeredPlayerIds, setAnsweredPlayerIds] = useState<string[]>([]);
+  const [isRoundComplete, setIsRoundComplete] = useState(false);
   const [syncedPlayerIds, setSyncedPlayerIds] = useState<string[]>([]);
   const [scheduledStartAt, setScheduledStartAt] = useState<string | null>(null);
   const [syncNow, setSyncNow] = useState(() => Date.now());
+  const [audioPrimed] = useState(() => isAudioPlaybackPrimed());
+
   const timerRef = useRef<number | null>(null);
+  const roundAdvanceTimeoutRef = useRef<number | null>(null);
   const roundStartTimeRef = useRef<number>(Date.now());
   const syncChannelRef = useRef<ReturnType<typeof supabase.channel> | null>(null);
   const syncStartedRef = useRef(false);
   const isHost = room.host_id === currentPlayerId;
 
-  // Fetch game rounds
   useEffect(() => {
     const fetchRounds = async () => {
       const { data } = await supabase
@@ -56,11 +69,12 @@ export default function GamePlay({ room, players, currentPlayerId, roomCode, tra
         setRounds(data as unknown as RoundData[]);
       }
     };
+
     fetchRounds();
   }, [room.id]);
 
   const currentRound = rounds[currentRoundIndex];
-  const correctTrack = currentRound ? tracks.find((t) => t.id === currentRound.track_id) : null;
+  const correctTrack = currentRound ? tracks.find((track) => track.id === currentRound.track_id) : null;
   const isClientLoaded = rounds.length > 0 && tracks.length > 0;
   const allPlayersSynced = players.length > 0 && players.every((player) => syncedPlayerIds.includes(player.id));
   const scheduledStartMs = scheduledStartAt ? new Date(scheduledStartAt).getTime() : null;
@@ -69,63 +83,94 @@ export default function GamePlay({ room, players, currentPlayerId, roomCode, tra
 
   const markPlayerSynced = useCallback((playerId: string) => {
     setSyncedPlayerIds((prev) => (
-      prev.includes(playerId)
-        ? prev
-        : [...prev, playerId]
+      prev.includes(playerId) ? prev : [...prev, playerId]
     ));
   }, []);
 
-  // Generate 4 options: 1 correct + max 1 from game tracks + rest from external distractors
+  const markPlayerAnswered = useCallback((playerId: string) => {
+    setAnsweredPlayerIds((prev) => (
+      prev.includes(playerId) ? prev : [...prev, playerId]
+    ));
+  }, []);
+
   const getOptions = useCallback((): Track[] => {
     if (!correctTrack) return [];
 
-    // Get other game tracks (max 1 as distractor)
-    const otherGameTracks = tracks.filter((t) => t.id !== correctTrack.id);
+    const otherGameTracks = tracks.filter((track) => track.id !== correctTrack.id);
     for (let i = otherGameTracks.length - 1; i > 0; i--) {
       const j = Math.floor(Math.random() * (i + 1));
       [otherGameTracks[i], otherGameTracks[j]] = [otherGameTracks[j], otherGameTracks[i]];
     }
-    const gameDistractors = otherGameTracks.slice(0, 1); // Max 1 game track as distractor
 
-    // Fill remaining slots with external distractors from Top 100
+    const gameDistractors = otherGameTracks.slice(0, 1);
     const neededExternal = 3 - gameDistractors.length;
     const shuffledExternal = [...distractorTracks];
     for (let i = shuffledExternal.length - 1; i > 0; i--) {
       const j = Math.floor(Math.random() * (i + 1));
       [shuffledExternal[i], shuffledExternal[j]] = [shuffledExternal[j], shuffledExternal[i]];
     }
-    const externalPicks = shuffledExternal.slice(0, neededExternal).map((d) => ({
-      ...d,
+
+    const externalPicks = shuffledExternal.slice(0, neededExternal).map((track) => ({
+      ...track,
       album: '',
       album_art_url: '',
       preview_url: null,
       youtube_id: null,
       duration_ms: 0,
       popularity: 0,
-      spotify_id: d.id,
+      spotify_id: track.id,
       cached_at: '',
       score: 0,
     })) as unknown as Track[];
 
-    // If not enough external distractors, fill from game tracks
     let allDistractors = [...gameDistractors, ...externalPicks];
     if (allDistractors.length < 3) {
-      const moreGame = otherGameTracks.slice(1, 1 + (3 - allDistractors.length));
-      allDistractors = [...allDistractors, ...moreGame];
+      const moreGameTracks = otherGameTracks.slice(1, 1 + (3 - allDistractors.length));
+      allDistractors = [...allDistractors, ...moreGameTracks];
     }
 
     const options = [correctTrack, ...allDistractors.slice(0, 3)];
-
-    // Shuffle options
     for (let i = options.length - 1; i > 0; i--) {
       const j = Math.floor(Math.random() * (i + 1));
       [options[i], options[j]] = [options[j], options[i]];
     }
 
     return options;
-  }, [correctTrack, tracks, distractorTracks]);
+  }, [correctTrack, distractorTracks, tracks]);
 
   const [options, setOptions] = useState<Track[]>([]);
+
+  const advanceRound = useCallback(() => {
+    if (currentRoundIndex >= rounds.length - 1) {
+      onGameEnd();
+    } else {
+      setCurrentRoundIndex((prev) => prev + 1);
+    }
+  }, [currentRoundIndex, onGameEnd, rounds.length]);
+
+  const finalizeRound = useCallback(() => {
+    if (isRoundComplete) return;
+
+    setIsRoundComplete(true);
+    setShowingResults(true);
+    if (timerRef.current) {
+      clearInterval(timerRef.current);
+    }
+    if (roundAdvanceTimeoutRef.current) {
+      clearTimeout(roundAdvanceTimeoutRef.current);
+    }
+    roundAdvanceTimeoutRef.current = window.setTimeout(() => {
+      advanceRound();
+    }, 3000);
+  }, [advanceRound, isRoundComplete]);
+
+  useEffect(() => {
+    return () => {
+      if (roundAdvanceTimeoutRef.current) {
+        clearTimeout(roundAdvanceTimeoutRef.current);
+      }
+    };
+  }, []);
 
   useEffect(() => {
     if (!room?.id || !currentPlayerId) return;
@@ -154,7 +199,7 @@ export default function GamePlay({ room, players, currentPlayerId, roomCode, tra
       syncChannelRef.current = null;
       syncStartedRef.current = false;
     };
-  }, [room?.id, currentPlayerId, markPlayerSynced]);
+  }, [currentPlayerId, markPlayerSynced, room?.id]);
 
   useEffect(() => {
     if (!currentPlayerId || !isClientLoaded || scheduledStartAt) return;
@@ -174,7 +219,7 @@ export default function GamePlay({ room, players, currentPlayerId, roomCode, tra
     return () => {
       window.clearInterval(interval);
     };
-  }, [currentPlayerId, isClientLoaded, scheduledStartAt, markPlayerSynced]);
+  }, [currentPlayerId, isClientLoaded, markPlayerSynced, scheduledStartAt]);
 
   useEffect(() => {
     if (!isHost || !isClientLoaded || scheduledStartAt || syncStartedRef.current || !allPlayersSynced) return;
@@ -218,32 +263,70 @@ export default function GamePlay({ room, players, currentPlayerId, roomCode, tra
     };
   }, [hasMatchStarted, isHost, scheduledStartAt]);
 
-  // Reset state for each new round
+  useEffect(() => {
+    if (!currentRound?.id) return;
+
+    const fetchAnsweredPlayers = async () => {
+      const { data } = await supabase
+        .from('player_answers')
+        .select('player_id')
+        .eq('round_id', currentRound.id);
+
+      if (data) {
+        setAnsweredPlayerIds(data.map((answer) => answer.player_id));
+      }
+    };
+
+    fetchAnsweredPlayers();
+
+    const channel = supabase
+      .channel(`round-answers:${currentRound.id}`)
+      .on(
+        'postgres_changes',
+        { event: 'INSERT', schema: 'public', table: 'player_answers', filter: `round_id=eq.${currentRound.id}` },
+        (payload) => {
+          const answer = payload.new as { player_id?: string };
+          if (answer.player_id) {
+            markPlayerAnswered(answer.player_id);
+          }
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [currentRound?.id, markPlayerAnswered]);
+
   useEffect(() => {
     if (!currentRound || !hasMatchStarted) return;
 
     setSelectedAnswer(null);
     setAnswerResult(null);
     setShowingResults(false);
+    setAnsweredPlayerIds([]);
+    setIsRoundComplete(false);
     setTimeRemaining(room.settings.time_per_round);
     roundStartTimeRef.current = Date.now();
     setOptions(getOptions());
-  }, [currentRound, room.settings.time_per_round, getOptions, hasMatchStarted]);
+    if (roundAdvanceTimeoutRef.current) {
+      clearTimeout(roundAdvanceTimeoutRef.current);
+    }
+  }, [currentRound, getOptions, hasMatchStarted, room.settings.time_per_round]);
 
-  // Countdown timer
   useEffect(() => {
-    if (!hasMatchStarted || showingResults || !currentRound) return;
+    if (!hasMatchStarted || !currentRound || isRoundComplete) return;
 
     timerRef.current = window.setInterval(() => {
       setTimeRemaining((prev) => {
         if (prev <= 1) {
-          if (timerRef.current) clearInterval(timerRef.current);
-          // Time's up — auto-submit wrong answer if not answered
-          if (!selectedAnswer) {
-            setShowingResults(true);
-            setAnswerResult({ correct: false, points: 0 });
-            setTimeout(() => advanceRound(), 3000);
+          if (timerRef.current) {
+            clearInterval(timerRef.current);
           }
+          if (!selectedAnswer) {
+            setAnswerResult({ correct: false, points: 0 });
+          }
+          finalizeRound();
           return 0;
         }
         return prev - 1;
@@ -251,9 +334,18 @@ export default function GamePlay({ room, players, currentPlayerId, roomCode, tra
     }, 1000);
 
     return () => {
-      if (timerRef.current) clearInterval(timerRef.current);
+      if (timerRef.current) {
+        clearInterval(timerRef.current);
+      }
     };
-  }, [currentRound?.id, showingResults, hasMatchStarted]);
+  }, [currentRound?.id, finalizeRound, hasMatchStarted, isRoundComplete, selectedAnswer]);
+
+  useEffect(() => {
+    if (!currentRound || isRoundComplete) return;
+    if (players.length > 0 && answeredPlayerIds.length >= players.length) {
+      finalizeRound();
+    }
+  }, [answeredPlayerIds.length, currentRound, finalizeRound, isRoundComplete, players.length]);
 
   const submitAnswer = async (trackId: string) => {
     if (selectedAnswer || isSubmitting || !currentRound) return;
@@ -277,6 +369,7 @@ export default function GamePlay({ room, players, currentPlayerId, roomCode, tra
 
       const json = await res.json();
       if (json.success) {
+        markPlayerAnswered(currentPlayerId);
         setAnswerResult({
           correct: json.data.is_correct,
           points: json.data.points_awarded,
@@ -294,19 +387,6 @@ export default function GamePlay({ room, players, currentPlayerId, roomCode, tra
 
     setIsSubmitting(false);
     setShowingResults(true);
-    if (timerRef.current) clearInterval(timerRef.current);
-
-    // Auto advance after showing result
-    setTimeout(() => advanceRound(), 3000);
-  };
-
-  const advanceRound = () => {
-    if (currentRoundIndex >= rounds.length - 1) {
-      // Game over
-      onGameEnd();
-    } else {
-      setCurrentRoundIndex((prev) => prev + 1);
-    }
   };
 
   const handleLeaveRoom = async () => {
@@ -316,6 +396,7 @@ export default function GamePlay({ room, players, currentPlayerId, roomCode, tra
       window.location.href = '/';
       return;
     }
+
     setIsLeaving(true);
     try {
       await fetch(`/api/rooms/${roomCode}/leave`, {
@@ -323,14 +404,13 @@ export default function GamePlay({ room, players, currentPlayerId, roomCode, tra
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ player_id: currentPlayerId }),
       });
-    } catch (e) {
-      console.error('Failed to leave room', e);
+    } catch (error) {
+      console.error('Failed to leave room', error);
     }
     clearRoomPlayerId(roomCode);
     window.location.href = '/';
   };
 
-  // Loading state
   if (!hasMatchStarted) {
     return (
       <main className="mx-auto flex min-h-screen w-full max-w-4xl flex-col justify-center gap-6 px-4 py-5 text-white sm:px-6">
@@ -360,7 +440,9 @@ export default function GamePlay({ room, players, currentPlayerId, roomCode, tra
                 Biar nggak kelewatan, gedein volume atau pakai headset dulu sebelum countdown habis.
               </p>
               <p className="mt-2 text-xs leading-5 text-amber-100/60 sm:text-sm">
-                On some phones, the browser may still ask for one tap before sound can start.
+                {audioPrimed
+                  ? 'This device was already primed from the Ready button, so autoplay has a better chance on Android.'
+                  : 'If Android still blocks autoplay, one tap on Start sound will unlock the round audio.'}
               </p>
             </div>
 
@@ -409,7 +491,7 @@ export default function GamePlay({ room, players, currentPlayerId, roomCode, tra
             <div className="rounded-3xl border border-white/10 bg-black/25 p-6 text-center">
               {scheduledStartAt ? (
                 <>
-              <div className="text-[0.65rem] uppercase tracking-[0.45em] text-white/45">Starts in</div>
+                  <div className="text-[0.65rem] uppercase tracking-[0.45em] text-white/45">Starts in</div>
                   <div className="mt-3 font-mono text-6xl font-bold tracking-[-0.08em] text-white">
                     {syncCountdown ?? 0}
                   </div>
@@ -452,7 +534,6 @@ export default function GamePlay({ room, players, currentPlayerId, roomCode, tra
 
   return (
     <main className="mx-auto flex min-h-screen w-full max-w-4xl flex-col gap-6 px-4 py-5 text-white sm:px-6">
-      {/* Round header */}
       <header className="flex flex-col gap-4 border-b border-white/10 pb-5 sm:flex-row sm:items-center sm:justify-between">
         <div className="flex items-center gap-3">
           <Chip variant="soft" className="border border-white/10 bg-white/5 text-white/70">
@@ -470,14 +551,13 @@ export default function GamePlay({ room, players, currentPlayerId, roomCode, tra
             type="button"
             onClick={() => setIsConfirmingLeave(true)}
             disabled={isLeaving}
-            className="inline-flex h-10 items-center justify-center rounded-xl bg-white/10 px-4 text-sm font-medium text-white transition hover:bg-red-500/20 hover:text-red-300 disabled:opacity-50 disabled:cursor-not-allowed"
+            className="inline-flex h-10 items-center justify-center rounded-xl bg-white/10 px-4 text-sm font-medium text-white transition hover:bg-red-500/20 hover:text-red-300 disabled:cursor-not-allowed disabled:opacity-50"
           >
             {isLeaving ? 'Leaving...' : 'Leave room'}
           </button>
         </div>
       </header>
 
-      {/* Timer bar */}
       <div className="h-1.5 w-full overflow-hidden rounded-full bg-white/10">
         <motion.div
           className="h-full rounded-full bg-white"
@@ -486,7 +566,6 @@ export default function GamePlay({ room, players, currentPlayerId, roomCode, tra
         />
       </div>
 
-      {/* Audio player */}
       <Card className="border border-white/10 bg-white/[0.04] shadow-[0_20px_80px_rgba(0,0,0,0.38)]">
         <Card.Content className="p-6">
           <div className="mb-3 text-center">
@@ -504,7 +583,6 @@ export default function GamePlay({ room, players, currentPlayerId, roomCode, tra
         </Card.Content>
       </Card>
 
-      {/* Answer options */}
       <div className="grid gap-3 sm:grid-cols-2">
         <AnimatePresence mode="wait">
           {options.map((track, index) => {
@@ -561,7 +639,6 @@ export default function GamePlay({ room, players, currentPlayerId, roomCode, tra
         </AnimatePresence>
       </div>
 
-      {/* Answer feedback overlay */}
       <AnimatePresence>
         {answerResult && showingResults && (
           <motion.div
@@ -573,7 +650,7 @@ export default function GamePlay({ room, players, currentPlayerId, roomCode, tra
             <Card className={`border ${answerResult.correct ? 'border-emerald-400/30 bg-emerald-400/10' : 'border-red-400/30 bg-red-400/10'} shadow-[0_20px_80px_rgba(0,0,0,0.5)]`}>
               <Card.Content className="flex items-center gap-4 px-6 py-4">
                 <div className={`grid h-12 w-12 place-items-center rounded-full ${answerResult.correct ? 'bg-emerald-400/20 text-emerald-300' : 'bg-red-400/20 text-red-300'}`}>
-                  {answerResult.correct ? '✓' : '✗'}
+                  {answerResult.correct ? '✓' : '✕'}
                 </div>
                 <div>
                   <div className="font-semibold text-white">
@@ -584,6 +661,11 @@ export default function GamePlay({ room, players, currentPlayerId, roomCode, tra
                       ? `+${answerResult.points} points`
                       : `The answer was "${correctTrack.title}" by ${correctTrack.artists.join(', ')}`}
                   </div>
+                  {!isRoundComplete && (
+                    <div className="mt-1 text-xs uppercase tracking-[0.22em] text-white/40">
+                      Waiting for other players...
+                    </div>
+                  )}
                 </div>
               </Card.Content>
             </Card>
@@ -591,7 +673,6 @@ export default function GamePlay({ room, players, currentPlayerId, roomCode, tra
         )}
       </AnimatePresence>
 
-      {/* Player scores sidebar (bottom on mobile) */}
       <Card className="border border-white/10 bg-white/[0.04] shadow-none">
         <Card.Content className="flex flex-wrap items-center gap-4 p-4">
           <span className="text-xs uppercase tracking-[0.3em] text-white/40">Scores</span>
@@ -601,7 +682,7 @@ export default function GamePlay({ room, players, currentPlayerId, roomCode, tra
                 {(player.display_name || 'P').slice(0, 2).toUpperCase()}
               </div>
               <span className="text-sm font-medium text-white">
-                {roundScores[currentRound?.id] && player.id === currentPlayerId
+                {roundScores[currentRound.id] && player.id === currentPlayerId
                   ? roundScores[currentRound.id]
                   : player.score}
               </span>
@@ -610,7 +691,6 @@ export default function GamePlay({ room, players, currentPlayerId, roomCode, tra
         </Card.Content>
       </Card>
 
-      {/* Confirmation Leave Modal */}
       <AnimatePresence>
         {isConfirmingLeave && (
           <motion.div
@@ -652,7 +732,6 @@ export default function GamePlay({ room, players, currentPlayerId, roomCode, tra
         )}
       </AnimatePresence>
 
-      {/* Leave overlay */}
       <AnimatePresence>
         {isLeaving && (
           <motion.div
@@ -662,7 +741,7 @@ export default function GamePlay({ room, players, currentPlayerId, roomCode, tra
             className="fixed inset-0 z-[110] flex flex-col items-center justify-center bg-black/60 backdrop-blur-md"
           >
             <div className="h-10 w-10 animate-spin rounded-full border-4 border-white/20 border-t-white" />
-            <div className="mt-4 text-sm font-medium tracking-widest text-white uppercase">Leaving the room...</div>
+            <div className="mt-4 text-sm font-medium uppercase tracking-widest text-white">Leaving the room...</div>
           </motion.div>
         )}
       </AnimatePresence>

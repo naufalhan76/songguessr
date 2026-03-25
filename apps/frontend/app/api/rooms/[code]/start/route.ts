@@ -8,6 +8,43 @@ interface RouteContext {
   params: Promise<{ code: string }>;
 }
 
+function normalizeText(value: string) {
+  return value
+    .toLowerCase()
+    .replace(/[^a-z0-9\s]/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+function normalizeArtists(artists: string[]) {
+  return artists
+    .map(normalizeText)
+    .filter(Boolean);
+}
+
+function isDuplicateSong(
+  candidate: { title: string; artists: string[] },
+  existing: { title: string; artists: string[] }
+) {
+  const candidateTitle = normalizeText(candidate.title);
+  const existingTitle = normalizeText(existing.title);
+
+  if (!candidateTitle || candidateTitle !== existingTitle) {
+    return false;
+  }
+
+  const candidateArtists = normalizeArtists(candidate.artists);
+  const existingArtists = normalizeArtists(existing.artists);
+
+  return candidateArtists.some((artist) => (
+    existingArtists.some((existingArtist) => (
+      artist === existingArtist
+      || artist.includes(existingArtist)
+      || existingArtist.includes(artist)
+    ))
+  ));
+}
+
 // POST /api/rooms/[code]/start — start the game (host only, from selecting phase)
 export async function POST(request: NextRequest, context: RouteContext) {
   try {
@@ -62,6 +99,15 @@ export async function POST(request: NextRequest, context: RouteContext) {
       .map((rs) => rs.tracks)
       .filter((t): t is NonNullable<typeof t> => !!t && (!!t.preview_url || !!t.youtube_id));
 
+    const uniqueTracks: typeof existingTracks = [];
+    for (const track of existingTracks) {
+      const hasDuplicate = uniqueTracks.some((existingTrack) => isDuplicateSong(track, existingTrack));
+      if (!hasDuplicate) {
+        uniqueTracks.push(track);
+      }
+    }
+    existingTracks = uniqueTracks;
+
     // Auto-fill from Top 100 Global if not enough songs
     const neededSongs = Math.max(roundCount, 4);
     if (existingTracks.length < neededSongs) {
@@ -74,7 +120,10 @@ export async function POST(request: NextRequest, context: RouteContext) {
         // Filter out tracks already in the room
         const existingSpotifyIds = new Set(existingTracks.map((t) => t.spotify_id));
         const fillTracks = globalTracks
-          .filter((t) => !existingSpotifyIds.has(t.spotify_id))
+          .filter((t) => (
+            !existingSpotifyIds.has(t.spotify_id)
+            && !existingTracks.some((existingTrack) => isDuplicateSong(t, existingTrack))
+          ))
           .slice(0, shortage);
 
         // Upsert fill tracks into DB

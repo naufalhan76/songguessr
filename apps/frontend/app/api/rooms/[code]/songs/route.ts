@@ -1,18 +1,118 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createServiceClient } from '@/lib/supabase-server';
+import { getTop100Indonesia } from '@/lib/youtube';
 import YouTube from 'youtube-sr';
 
 interface RouteContext {
   params: Promise<{ code: string }>;
 }
 
-// GET /api/rooms/[code]/songs — list all songs in the room
-export async function GET(_request: NextRequest, context: RouteContext) {
+type TrackPayload = {
+  spotify_id: string;
+  title: string;
+  artists: string[];
+  album: string;
+  album_art_url: string;
+  preview_url: string | null;
+  youtube_id?: string;
+  duration_ms: number;
+  popularity: number;
+};
+
+function normalizeText(value: string) {
+  return value
+    .toLowerCase()
+    .replace(/[^a-z0-9\s]/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+function normalizeArtists(artists: string[]) {
+  return artists
+    .map(normalizeText)
+    .filter(Boolean);
+}
+
+function isDuplicateSong(
+  candidate: { title: string; artists: string[] },
+  existing: { title: string; artists: string[] }
+) {
+  const normalizedTitle = normalizeText(candidate.title);
+  const existingTitle = normalizeText(existing.title);
+  if (!normalizedTitle || normalizedTitle !== existingTitle) {
+    return false;
+  }
+
+  const candidateArtists = normalizeArtists(candidate.artists);
+  const existingArtists = normalizeArtists(existing.artists);
+
+  return candidateArtists.some((artist) => (
+    existingArtists.some((existingArtist) => (
+      artist === existingArtist
+      || artist.includes(existingArtist)
+      || existingArtist.includes(artist)
+    ))
+  ));
+}
+
+async function saveTrack(
+  supabase: ReturnType<typeof createServiceClient>,
+  track: TrackPayload
+) {
+  const { data, error } = await supabase
+    .from('tracks')
+    .upsert(
+      {
+        spotify_id: track.spotify_id,
+        title: track.title,
+        artists: track.artists,
+        album: track.album,
+        album_art_url: track.album_art_url,
+        preview_url: track.preview_url || null,
+        youtube_id: track.youtube_id || null,
+        duration_ms: track.duration_ms,
+        popularity: track.popularity,
+        cached_at: new Date().toISOString(),
+      },
+      { onConflict: 'spotify_id' }
+    )
+    .select()
+    .single();
+
+  if (error || !data) {
+    throw new Error('Failed to save track');
+  }
+
+  return data;
+}
+
+async function getFallbackTrack(
+  supabase: ReturnType<typeof createServiceClient>,
+  existingTracks: Array<{ spotify_id: string; title: string; artists: string[] }>
+) {
+  const topTracks = await getTop100Indonesia();
+
+  const availableTrack = topTracks.find((track) => {
+    return !existingTracks.some((existingTrack) => (
+      existingTrack.spotify_id === track.spotify_id
+      || isDuplicateSong(track, existingTrack)
+    ));
+  });
+
+  if (!availableTrack) {
+    throw new Error('No fallback songs available');
+  }
+
+  return saveTrack(supabase, availableTrack);
+}
+
+// GET /api/rooms/[code]/songs - list room songs
+export async function GET(request: NextRequest, context: RouteContext) {
   try {
     const { code } = await context.params;
     const supabase = createServiceClient();
+    const currentPlayerId = request.nextUrl.searchParams.get('player_id');
 
-    // Get room
     const { data: room, error: roomError } = await supabase
       .from('rooms')
       .select('*')
@@ -23,30 +123,38 @@ export async function GET(_request: NextRequest, context: RouteContext) {
       return NextResponse.json({ success: false, error: 'Room not found' }, { status: 404 });
     }
 
-    // Get room songs with track details
     const { data: roomSongs } = await supabase
       .from('room_songs')
       .select('*, tracks(*)')
       .eq('room_id', room.id)
       .order('added_at', { ascending: true });
 
-    // Get player display names
     const { data: players } = await supabase
       .from('players')
       .select('id, display_name')
       .eq('room_id', room.id);
 
-    const playerMap = new Map(
-      (players ?? []).map((p) => [p.id, p.display_name ?? 'Player'])
-    );
+    const playerMap = new Map((players ?? []).map((player) => [player.id, player.display_name ?? 'Player']));
+    const songsPerPlayer = Math.ceil(((room.settings as { rounds?: number }).rounds ?? 10) / Math.max((players ?? []).length, 1));
 
-    const songs = (roomSongs ?? []).map((rs) => ({
-      id: rs.id,
-      player_id: rs.player_id,
-      player_name: playerMap.get(rs.player_id) ?? 'Player',
-      track: rs.tracks,
-      added_at: rs.added_at,
-    }));
+    const songs = (roomSongs ?? []).map((roomSong, index) => {
+      const playerName = playerMap.get(roomSong.player_id) ?? 'Player';
+      const isOwner = currentPlayerId === roomSong.player_id;
+      const playerSongIndex = (roomSongs ?? [])
+        .filter((entry) => entry.player_id === roomSong.player_id && new Date(entry.added_at).getTime() <= new Date(roomSong.added_at).getTime())
+        .length;
+
+      return {
+        id: roomSong.id,
+        player_id: roomSong.player_id,
+        player_name: playerName,
+        track: isOwner ? roomSong.tracks : null,
+        masked_label: `${playerName} telah menambahkan lagu ke-${playerSongIndex}`,
+        masked_slot: Math.min(playerSongIndex, songsPerPlayer),
+        order: index + 1,
+        added_at: roomSong.added_at,
+      };
+    });
 
     return NextResponse.json({ success: true, data: songs });
   } catch (err) {
@@ -55,7 +163,7 @@ export async function GET(_request: NextRequest, context: RouteContext) {
   }
 }
 
-// POST /api/rooms/[code]/songs — add a song to the room
+// POST /api/rooms/[code]/songs - add a song to the room
 export async function POST(request: NextRequest, context: RouteContext) {
   try {
     const { code } = await context.params;
@@ -63,40 +171,28 @@ export async function POST(request: NextRequest, context: RouteContext) {
     const body = await request.json();
 
     const playerId = body.player_id as string;
-    const spotifyTrack = body.track as {
-      spotify_id: string;
-      title: string;
-      artists: string[];
-      album: string;
-      album_art_url: string;
-      preview_url: string;
-      youtube_id?: string;
-      duration_ms: number;
-      popularity: number;
-    };
+    const requestedTrack = body.track as TrackPayload;
 
-    if (!playerId || !spotifyTrack?.spotify_id) {
+    if (!playerId || !requestedTrack?.spotify_id) {
       return NextResponse.json(
         { success: false, error: 'player_id and track are required' },
         { status: 400 }
       );
     }
 
-    // Use youtube_id from the request if provided, otherwise search for it
-    let youtubeId = spotifyTrack.youtube_id || null;
-    if (!youtubeId && !spotifyTrack.preview_url) {
+    let youtubeId = requestedTrack.youtube_id || null;
+    if (!youtubeId && !requestedTrack.preview_url) {
       try {
-        const query = `${spotifyTrack.artists.join(' ')} ${spotifyTrack.title} audio`;
+        const query = `${requestedTrack.artists.join(' ')} ${requestedTrack.title} audio`;
         const video = await YouTube.searchOne(query, 'video', true);
-        if (video && video.id) {
+        if (video?.id) {
           youtubeId = video.id;
         }
-      } catch (e) {
-        console.error('youtube-sr fetch error', e);
+      } catch (error) {
+        console.error('youtube-sr fetch error', error);
       }
     }
 
-    // Get room
     const { data: room, error: roomError } = await supabase
       .from('rooms')
       .select('*')
@@ -114,7 +210,6 @@ export async function POST(request: NextRequest, context: RouteContext) {
       );
     }
 
-    // Check player belongs to room
     const { data: player } = await supabase
       .from('players')
       .select('*')
@@ -126,15 +221,12 @@ export async function POST(request: NextRequest, context: RouteContext) {
       return NextResponse.json({ success: false, error: 'Player not found in this room' }, { status: 403 });
     }
 
-    // Check player quota
-    const settings = room.settings as { rounds?: number; max_players?: number };
-    const roundCount = settings.rounds ?? 10;
-
     const { data: allPlayers } = await supabase
       .from('players')
       .select('id')
       .eq('room_id', room.id);
 
+    const roundCount = (room.settings as { rounds?: number }).rounds ?? 10;
     const playerCount = allPlayers?.length ?? 1;
     const songsPerPlayer = Math.ceil(roundCount / playerCount);
 
@@ -151,33 +243,57 @@ export async function POST(request: NextRequest, context: RouteContext) {
       );
     }
 
-    // Upsert track into tracks table
-    const { data: dbTrack, error: trackError } = await supabase
-      .from('tracks')
-      .upsert(
-        {
-          spotify_id: spotifyTrack.spotify_id,
-          title: spotifyTrack.title,
-          artists: spotifyTrack.artists,
-          album: spotifyTrack.album,
-          album_art_url: spotifyTrack.album_art_url,
-          preview_url: spotifyTrack.preview_url || null,
-          youtube_id: youtubeId,
-          duration_ms: spotifyTrack.duration_ms,
-          popularity: spotifyTrack.popularity,
-          cached_at: new Date().toISOString(),
-        },
-        { onConflict: 'spotify_id' }
-      )
-      .select()
-      .single();
+    const { data: existingRoomSongs } = await supabase
+      .from('room_songs')
+      .select('player_id, tracks(*)')
+      .eq('room_id', room.id);
 
-    if (trackError || !dbTrack) {
-      console.error('Failed to upsert track', trackError);
-      return NextResponse.json({ success: false, error: 'Failed to save track' }, { status: 500 });
+    const existingTracks = ((existingRoomSongs ?? []) as unknown as Array<{
+      player_id: string;
+      tracks: { spotify_id: string; title: string; artists: string[] } | null;
+    }>)
+      .map((roomSong) => roomSong.tracks)
+      .filter((track): track is { spotify_id: string; title: string; artists: string[] } => Boolean(track));
+
+    let trackToInsert: TrackPayload = {
+      ...requestedTrack,
+      youtube_id: youtubeId || undefined,
+    };
+    let replacementMessage: string | null = null;
+
+    const duplicateFound = existingTracks.some((track) => isDuplicateSong(trackToInsert, track));
+    if (duplicateFound) {
+      const fallbackTrack = await getFallbackTrack(
+        supabase,
+        existingTracks.map((track) => ({
+          spotify_id: track.spotify_id,
+          title: track.title,
+          artists: track.artists,
+        }))
+      );
+
+      trackToInsert = {
+        spotify_id: fallbackTrack.spotify_id,
+        title: fallbackTrack.title,
+        artists: fallbackTrack.artists,
+        album: fallbackTrack.album,
+        album_art_url: fallbackTrack.album_art_url,
+        preview_url: fallbackTrack.preview_url,
+        youtube_id: fallbackTrack.youtube_id || undefined,
+        duration_ms: fallbackTrack.duration_ms,
+        popularity: fallbackTrack.popularity,
+      };
+
+      replacementMessage = 'Duplicate song detected. We replaced it with a Top 100 fallback.';
     }
 
-    // Insert room_song
+    const dbTrack = duplicateFound
+      ? await saveTrack(supabase, trackToInsert)
+      : await saveTrack(supabase, {
+          ...trackToInsert,
+          youtube_id: trackToInsert.youtube_id || undefined,
+        });
+
     const { data: roomSong, error: songError } = await supabase
       .from('room_songs')
       .insert({
@@ -206,6 +322,7 @@ export async function POST(request: NextRequest, context: RouteContext) {
         track: dbTrack,
         songs_added: (playerSongCount ?? 0) + 1,
         songs_quota: songsPerPlayer,
+        replacement_message: replacementMessage,
       },
     });
   } catch (err) {
@@ -214,7 +331,7 @@ export async function POST(request: NextRequest, context: RouteContext) {
   }
 }
 
-// DELETE /api/rooms/[code]/songs — remove a song from the room
+// DELETE /api/rooms/[code]/songs - remove a song from the room
 export async function DELETE(request: NextRequest, context: RouteContext) {
   try {
     const { code } = await context.params;
@@ -231,7 +348,6 @@ export async function DELETE(request: NextRequest, context: RouteContext) {
       );
     }
 
-    // Get room
     const { data: room } = await supabase
       .from('rooms')
       .select('*')
@@ -245,7 +361,6 @@ export async function DELETE(request: NextRequest, context: RouteContext) {
       );
     }
 
-    // Delete only if it belongs to this player
     const { error } = await supabase
       .from('room_songs')
       .delete()
