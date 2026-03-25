@@ -26,6 +26,7 @@ export default function GamePlay({ room, players, currentPlayerId, roomCode, tra
   const [rounds, setRounds] = useState<RoundData[]>([]);
   const [currentRoundIndex, setCurrentRoundIndex] = useState(0);
   const [timeRemaining, setTimeRemaining] = useState(room.settings.time_per_round);
+  const [isLeaving, setIsLeaving] = useState(false);
   const [selectedAnswer, setSelectedAnswer] = useState<string | null>(null);
   const [answerResult, setAnswerResult] = useState<{ correct: boolean; points: number } | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -174,6 +175,7 @@ export default function GamePlay({ room, players, currentPlayerId, roomCode, tra
       window.location.href = '/';
       return;
     }
+    setIsLeaving(true);
     try {
       await fetch(`/api/rooms/${roomCode}/leave`, {
         method: 'POST',
@@ -222,9 +224,10 @@ export default function GamePlay({ room, players, currentPlayerId, roomCode, tra
           <button
             type="button"
             onClick={handleLeaveRoom}
-            className="inline-flex h-10 items-center justify-center rounded-xl bg-white/10 px-4 text-sm font-medium text-white transition hover:bg-red-500/20 hover:text-red-300"
+            disabled={isLeaving}
+            className="inline-flex h-10 items-center justify-center rounded-xl bg-white/10 px-4 text-sm font-medium text-white transition hover:bg-red-500/20 hover:text-red-300 disabled:opacity-50 disabled:cursor-not-allowed"
           >
-            Leave room
+            {isLeaving ? 'Leaving...' : 'Leave room'}
           </button>
         </div>
       </header>

@@ -49,6 +49,7 @@ export default function SongSelection({
   const [isAdding, setIsAdding] = useState<string | null>(null); // spotify_id being added
   const [timeRemaining, setTimeRemaining] = useState(0); // in seconds
   const [isStartingGame, setIsStartingGame] = useState(false);
+  const [isLeaving, setIsLeaving] = useState(false);
   const searchTimeoutRef = useRef<number | null>(null);
   const timerRef = useRef<number | null>(null);
 
@@ -234,6 +235,7 @@ export default function SongSelection({
       window.location.href = '/';
       return;
     }
+    setIsLeaving(true);
     try {
       await fetch(`/api/rooms/${roomCode}/leave`, {
         method: 'POST',
@@ -283,9 +285,10 @@ export default function SongSelection({
           <button
             type="button"
             onClick={handleLeaveRoom}
-            className="inline-flex h-10 items-center justify-center rounded-xl bg-white/10 px-4 text-sm font-medium text-white transition hover:bg-red-500/20 hover:text-red-300"
+            disabled={isLeaving}
+            className="inline-flex h-10 items-center justify-center rounded-xl bg-white/10 px-4 text-sm font-medium text-white transition hover:bg-red-500/20 hover:text-red-300 disabled:opacity-50 disabled:cursor-not-allowed"
           >
-            Leave room
+            {isLeaving ? 'Leaving...' : 'Leave room'}
           </button>
         </div>
       </header>

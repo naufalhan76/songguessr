@@ -24,6 +24,7 @@ export default function Leaderboard({ room, players, currentUserId, roomCode, tr
   const [leaderboard, setLeaderboard] = useState<PlayerWithAnswers[]>([]);
   const [loading, setLoading] = useState(true);
   const [mostPlayedArtist, setMostPlayedArtist] = useState<string>('');
+  const [isLeaving, setIsLeaving] = useState(false);
 
   useEffect(() => {
     const fetchLeaderboard = async () => {
@@ -100,6 +101,7 @@ export default function Leaderboard({ room, players, currentUserId, roomCode, tr
   }, [room.id, players, tracks]);
 
   const handleLeaveRoom = async () => {
+    setIsLeaving(true);
     try {
       await fetch(`/api/rooms/${roomCode}/leave`, {
         method: 'POST',
@@ -242,8 +244,8 @@ export default function Leaderboard({ room, players, currentUserId, roomCode, tr
 
       {/* Actions */}
       <div className="flex flex-col items-center gap-3 border-t border-white/10 py-8">
-        <Button variant="primary" size="lg" className="bg-white text-black" onPress={handleLeaveRoom}>
-          Leave Room / Play again
+        <Button variant="primary" size="lg" className="bg-white text-black" onPress={handleLeaveRoom} isDisabled={isLeaving}>
+          {isLeaving ? 'Leaving...' : 'Leave Room / Play again'}
         </Button>
         <p className="text-sm text-white/45">Create a new room and start another round</p>
       </div>

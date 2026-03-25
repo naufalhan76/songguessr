@@ -48,6 +48,7 @@ export default function RoomLobby({ roomCode, onSelectionStarted, onPlayerIdSet 
   const [isSavingName, setIsSavingName] = useState(false);
   const nameInputRef = useRef<HTMLInputElement>(null);
   const lobbyChannelRef = useRef<ReturnType<typeof supabase.channel> | null>(null);
+  const [isLeaving, setIsLeaving] = useState(false);
 
   const readyCount = players.filter((p) => p.is_ready).length;
   const maxPlayerCount = (room?.settings?.max_players) ?? 4;
@@ -177,9 +178,30 @@ export default function RoomLobby({ roomCode, onSelectionStarted, onPlayerIdSet 
     });
   };
 
-  const handleCopyCode = async () => {
-    await navigator.clipboard.writeText(roomCode);
-    alert('Room code copied to clipboard!');
+  const handleShareLink = async () => {
+    if (navigator.share) {
+      try {
+        await navigator.share({
+          title: 'Songguessr',
+          text: `Join my Songguessr room: ${roomDisplayName || roomCode}`,
+          url: joinUrl,
+        });
+        return;
+      } catch (e) {
+        if ((e as Error).name !== 'AbortError') {
+          console.error('Error sharing:', e);
+        }
+      }
+    }
+    
+    // Fallback to clipboard
+    try {
+      await navigator.clipboard.writeText(joinUrl);
+      alert('Room link copied to clipboard!');
+    } catch (e) {
+      console.error('Failed to copy', e);
+      alert('Failed to copy link');
+    }
   };
 
   const handleNameKeyDown = (e: React.KeyboardEvent) => {
@@ -192,6 +214,7 @@ export default function RoomLobby({ roomCode, onSelectionStarted, onPlayerIdSet 
       return;
     }
     
+    setIsLeaving(true);
     try {
       await fetch(`/api/rooms/${roomCode}/leave`, {
         method: 'POST',
@@ -386,11 +409,11 @@ export default function RoomLobby({ roomCode, onSelectionStarted, onPlayerIdSet 
         </div>
 
         <div className="flex flex-wrap gap-3">
-          <Button variant="outline" className="border-white/15 text-white" onPress={handleCopyCode}>
-            Copy code
+          <Button variant="outline" className="border-white/15 text-white" onPress={handleShareLink}>
+            Share link
           </Button>
-          <Button variant="primary" className="bg-white text-black" onPress={handleLeaveRoom}>
-            Leave room
+          <Button variant="primary" className="bg-white text-black" onPress={handleLeaveRoom} isDisabled={isLeaving}>
+            {isLeaving ? 'Leaving...' : 'Leave room'}
           </Button>
         </div>
       </header>
