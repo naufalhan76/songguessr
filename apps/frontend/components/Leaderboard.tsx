@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react';
 import { Player, Room, Track } from '@songguessr/shared';
 import { supabase } from '@/lib/supabase';
-import { motion } from 'framer-motion';
+import { motion, AnimatePresence } from 'framer-motion';
 import { Button, Card, Chip, Separator } from '@heroui/react';
 
 interface LeaderboardProps {
@@ -249,6 +249,21 @@ export default function Leaderboard({ room, players, currentUserId, roomCode, tr
         </Button>
         <p className="text-sm text-white/45">Create a new room and start another round</p>
       </div>
+
+      {/* Leave overlay */}
+      <AnimatePresence>
+        {isLeaving && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-[110] flex flex-col items-center justify-center bg-black/60 backdrop-blur-md"
+          >
+            <div className="h-10 w-10 animate-spin rounded-full border-4 border-white/20 border-t-white" />
+            <div className="mt-4 text-sm font-medium tracking-widest text-white uppercase">Leaving the room...</div>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </main>
   );
 }

@@ -85,16 +85,8 @@ export default function LandingPage() {
 
   return (
     <main className="mx-auto flex min-h-screen w-full max-w-7xl flex-col px-4 py-5 sm:px-6 lg:px-8">
-      <header className="flex flex-col gap-4 border-b border-white/10 pb-5 sm:flex-row sm:items-end sm:justify-between">
-        <div className="flex items-center gap-3">
-          <div className="grid h-11 w-11 place-items-center rounded-full border border-white/15 bg-white/5 font-mono text-sm tracking-[0.35em] text-white/80">
-            SG
-          </div>
-          <div>
-            <div className="text-[0.7rem] uppercase tracking-[0.42em] text-white/40">Songguessr</div>
-            <div className="text-sm text-white/65">Fast music guessing rooms</div>
-          </div>
-        </div>
+      <header className="flex items-center justify-center border-b border-white/10 pb-5">
+        <div className="text-xl font-bold uppercase tracking-[0.4em] text-white">Songguessr</div>
       </header>
 
       <section className="grid flex-1 gap-8 py-10 lg:grid-cols-[1.05fr_0.95fr] lg:items-center">

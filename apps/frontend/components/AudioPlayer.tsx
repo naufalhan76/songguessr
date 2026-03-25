@@ -21,7 +21,9 @@ export default function AudioPlayer({ src, youtubeId, autoPlay = true, onEnded, 
   const [currentTime, setCurrentTime] = useState(0);
   const [isYoutubeReady, setIsYoutubeReady] = useState(false);
 
-  const isYoutubeMode = !src && !!youtubeId;
+  // Force YouTube playback to avoid Spotify Premium errors. Can be disabled later for hybrid mode.
+  const forceYoutube = true;
+  const isYoutubeMode = forceYoutube ? !!youtubeId : (!src && !!youtubeId);
 
   // Cleanup on unmount
   useEffect(() => {

@@ -27,6 +27,7 @@ export default function GamePlay({ room, players, currentPlayerId, roomCode, tra
   const [currentRoundIndex, setCurrentRoundIndex] = useState(0);
   const [timeRemaining, setTimeRemaining] = useState(room.settings.time_per_round);
   const [isLeaving, setIsLeaving] = useState(false);
+  const [isConfirmingLeave, setIsConfirmingLeave] = useState(false);
   const [selectedAnswer, setSelectedAnswer] = useState<string | null>(null);
   const [answerResult, setAnswerResult] = useState<{ correct: boolean; points: number } | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -171,6 +172,7 @@ export default function GamePlay({ room, players, currentPlayerId, roomCode, tra
   };
 
   const handleLeaveRoom = async () => {
+    setIsConfirmingLeave(false);
     if (!currentPlayerId) {
       window.location.href = '/';
       return;
@@ -223,7 +225,7 @@ export default function GamePlay({ room, players, currentPlayerId, roomCode, tra
           </div>
           <button
             type="button"
-            onClick={handleLeaveRoom}
+            onClick={() => setIsConfirmingLeave(true)}
             disabled={isLeaving}
             className="inline-flex h-10 items-center justify-center rounded-xl bg-white/10 px-4 text-sm font-medium text-white transition hover:bg-red-500/20 hover:text-red-300 disabled:opacity-50 disabled:cursor-not-allowed"
           >
@@ -362,6 +364,63 @@ export default function GamePlay({ room, players, currentPlayerId, roomCode, tra
           ))}
         </Card.Content>
       </Card>
+
+      {/* Confirmation Leave Modal */}
+      <AnimatePresence>
+        {isConfirmingLeave && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-[100] flex items-center justify-center bg-black/60 p-4 backdrop-blur-md"
+          >
+            <motion.div
+              initial={{ scale: 0.95, y: 10 }}
+              animate={{ scale: 1, y: 0 }}
+              className="w-full max-w-sm space-y-6 rounded-3xl border border-white/10 bg-black/80 px-6 py-8 text-center shadow-2xl"
+            >
+              <div className="mx-auto grid h-12 w-12 place-items-center rounded-full bg-red-500/20 text-xl text-red-400">
+                <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+              </div>
+              <div>
+                <h3 className="text-xl font-semibold tracking-tight text-white">Leave match?</h3>
+                <p className="mt-2 text-sm text-white/60">Are you sure you want to leave the game? Your progress will be lost.</p>
+              </div>
+              <div className="flex gap-3">
+                <button
+                  type="button"
+                  onClick={() => setIsConfirmingLeave(false)}
+                  className="flex-1 rounded-xl border border-white/10 bg-white/5 py-3 text-sm font-medium text-white transition hover:bg-white/10"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  onClick={handleLeaveRoom}
+                  className="flex-1 rounded-xl bg-red-500 py-3 text-sm font-medium text-white transition hover:bg-red-600"
+                >
+                  Leave
+                </button>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Leave overlay */}
+      <AnimatePresence>
+        {isLeaving && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-[110] flex flex-col items-center justify-center bg-black/60 backdrop-blur-md"
+          >
+            <div className="h-10 w-10 animate-spin rounded-full border-4 border-white/20 border-t-white" />
+            <div className="mt-4 text-sm font-medium tracking-widest text-white uppercase">Leaving the room...</div>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </main>
   );
 }
