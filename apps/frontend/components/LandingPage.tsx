@@ -35,6 +35,7 @@ export default function LandingPage() {
   const [roomCode, setRoomCode] = useState('');
   const [displayName, setDisplayName] = useState('');
   const [isCreating, setIsCreating] = useState(false);
+  const [isJoinModalOpen, setIsJoinModalOpen] = useState(false);
   const canJoin = roomCode.length === 6;
 
   // Restore display name from guest session
@@ -80,6 +81,7 @@ export default function LandingPage() {
 
   const handleJoinRoom = () => {
     if (!canJoin) return;
+    setIsJoinModalOpen(false);
     router.push(`/room/${roomCode}`);
   };
 
@@ -128,7 +130,7 @@ export default function LandingPage() {
               placeholder="Your display name"
               className="h-12 w-full max-w-sm rounded-2xl border border-white/12 bg-black/30 px-4 text-sm text-white outline-none transition placeholder:text-white/30 focus:border-white/30"
             />
-            <div className="flex flex-wrap gap-3">
+            <div className="flex flex-wrap items-center gap-3">
               <button
                 type="button"
                 onClick={handleCreateRoom}
@@ -137,7 +139,14 @@ export default function LandingPage() {
               >
                 {isCreating ? 'Creating...' : 'Create room'}
               </button>
-              <button type="button" onClick={handleJoinRoom} disabled={!canJoin} className="inline-flex h-12 items-center justify-center rounded-full border border-white/15 px-5 text-sm font-medium text-white transition hover:bg-white/5 disabled:cursor-not-allowed disabled:opacity-45">
+              <span className="text-xs uppercase tracking-[0.38em] text-white/28">
+                -or-
+              </span>
+              <button
+                type="button"
+                onClick={() => setIsJoinModalOpen(true)}
+                className="inline-flex h-12 items-center justify-center rounded-full border border-white/15 px-5 text-sm font-medium text-white transition hover:bg-white/5"
+              >
                 Join room
               </button>
             </div>
@@ -203,31 +212,65 @@ export default function LandingPage() {
         ))}
       </section>
 
-      <section className="border-t border-white/10 py-6">
-        <Card className="border border-white/10 bg-white/[0.03] shadow-none">
-          <Card.Content className="grid gap-4 p-5 md:grid-cols-[1.2fr_0.8fr] md:items-center">
-            <div>
-              <div className="text-sm font-medium text-white">Join a room</div>
-              <p className="mt-1 text-sm text-white/52">
-                Enter a 6-character room code to jump straight into a lobby.
-              </p>
+      {isJoinModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/72 px-4 backdrop-blur-sm">
+          <div className="w-full max-w-md rounded-[2rem] border border-white/10 bg-[#0d0d0f] p-6 shadow-[0_30px_120px_rgba(0,0,0,0.55)] sm:p-7">
+            <div className="flex items-start justify-between gap-4">
+              <div>
+                <div className="text-xs uppercase tracking-[0.38em] text-white/35">Join room</div>
+                <h2 className="mt-2 text-2xl font-semibold tracking-[-0.05em] text-white">
+                  Enter your room code
+                </h2>
+                <p className="mt-2 text-sm leading-6 text-white/55">
+                  Paste the 6-character code and jump straight into the lobby.
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setIsJoinModalOpen(false)}
+                className="inline-flex h-10 w-10 items-center justify-center rounded-full border border-white/10 bg-white/5 text-lg text-white/70 transition hover:bg-white/10 hover:text-white"
+                aria-label="Close join room dialog"
+              >
+                ×
+              </button>
             </div>
-            <div className="flex flex-col gap-3 sm:flex-row">
+
+            <div className="mt-6 space-y-4">
               <input
                 value={roomCode}
                 onChange={(event) => setRoomCode(event.target.value.toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 6))}
+                onKeyDown={(event) => {
+                  if (event.key === 'Enter' && canJoin) {
+                    handleJoinRoom();
+                  }
+                }}
                 maxLength={6}
                 placeholder="ROOM01"
                 aria-label="Room code"
-                className="h-12 w-full rounded-2xl border border-white/12 bg-black/30 px-4 font-mono text-sm tracking-[0.32em] text-white outline-none transition placeholder:text-white/30 focus:border-white/30"
+                autoFocus
+                className="h-14 w-full rounded-[1.3rem] border border-white/12 bg-black/30 px-5 font-mono text-base tracking-[0.34em] text-white outline-none transition placeholder:text-white/25 focus:border-white/30"
               />
-              <button type="button" onClick={handleJoinRoom} disabled={!canJoin} className="inline-flex h-12 items-center justify-center rounded-2xl bg-white px-5 text-sm font-medium text-black transition hover:scale-[1.01] active:scale-[0.99] disabled:cursor-not-allowed disabled:opacity-45 sm:w-40">
-                Join now
-              </button>
+              <div className="flex gap-3">
+                <button
+                  type="button"
+                  onClick={() => setIsJoinModalOpen(false)}
+                  className="inline-flex h-12 flex-1 items-center justify-center rounded-2xl border border-white/12 bg-white/5 px-5 text-sm font-medium text-white transition hover:bg-white/10"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  onClick={handleJoinRoom}
+                  disabled={!canJoin}
+                  className="inline-flex h-12 flex-1 items-center justify-center rounded-2xl bg-white px-5 text-sm font-medium text-black transition hover:scale-[1.01] active:scale-[0.99] disabled:cursor-not-allowed disabled:opacity-45"
+                >
+                  Join now
+                </button>
+              </div>
             </div>
-          </Card.Content>
-        </Card>
-      </section>
+          </div>
+        </div>
+      )}
     </main>
   );
 }
