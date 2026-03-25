@@ -190,9 +190,6 @@ export default function SongSelection({
       if (!json.success) {
         alert(json.error);
       } else {
-        if (json.data?.replacement_message) {
-          alert(json.data.replacement_message);
-        }
         await fetchRoomSongs();
       }
     } catch (e) {

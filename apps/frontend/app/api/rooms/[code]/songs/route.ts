@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createServiceClient } from '@/lib/supabase-server';
-import { getTop100Indonesia } from '@/lib/youtube';
 import YouTube from 'youtube-sr';
 
 interface RouteContext {
@@ -18,42 +17,6 @@ type TrackPayload = {
   duration_ms: number;
   popularity: number;
 };
-
-function normalizeText(value: string) {
-  return value
-    .toLowerCase()
-    .replace(/[^a-z0-9\s]/g, ' ')
-    .replace(/\s+/g, ' ')
-    .trim();
-}
-
-function normalizeArtists(artists: string[]) {
-  return artists
-    .map(normalizeText)
-    .filter(Boolean);
-}
-
-function isDuplicateSong(
-  candidate: { title: string; artists: string[] },
-  existing: { title: string; artists: string[] }
-) {
-  const normalizedTitle = normalizeText(candidate.title);
-  const existingTitle = normalizeText(existing.title);
-  if (!normalizedTitle || normalizedTitle !== existingTitle) {
-    return false;
-  }
-
-  const candidateArtists = normalizeArtists(candidate.artists);
-  const existingArtists = normalizeArtists(existing.artists);
-
-  return candidateArtists.some((artist) => (
-    existingArtists.some((existingArtist) => (
-      artist === existingArtist
-      || artist.includes(existingArtist)
-      || existingArtist.includes(artist)
-    ))
-  ));
-}
 
 async function saveTrack(
   supabase: ReturnType<typeof createServiceClient>,
@@ -84,26 +47,6 @@ async function saveTrack(
   }
 
   return data;
-}
-
-async function getFallbackTrack(
-  supabase: ReturnType<typeof createServiceClient>,
-  existingTracks: Array<{ spotify_id: string; title: string; artists: string[] }>
-) {
-  const topTracks = await getTop100Indonesia();
-
-  const availableTrack = topTracks.find((track) => {
-    return !existingTracks.some((existingTrack) => (
-      existingTrack.spotify_id === track.spotify_id
-      || isDuplicateSong(track, existingTrack)
-    ));
-  });
-
-  if (!availableTrack) {
-    throw new Error('No fallback songs available');
-  }
-
-  return saveTrack(supabase, availableTrack);
 }
 
 // GET /api/rooms/[code]/songs - list room songs
@@ -243,56 +186,15 @@ export async function POST(request: NextRequest, context: RouteContext) {
       );
     }
 
-    const { data: existingRoomSongs } = await supabase
-      .from('room_songs')
-      .select('player_id, tracks(*)')
-      .eq('room_id', room.id);
-
-    const existingTracks = ((existingRoomSongs ?? []) as unknown as Array<{
-      player_id: string;
-      tracks: { spotify_id: string; title: string; artists: string[] } | null;
-    }>)
-      .map((roomSong) => roomSong.tracks)
-      .filter((track): track is { spotify_id: string; title: string; artists: string[] } => Boolean(track));
-
-    let trackToInsert: TrackPayload = {
+    const trackToInsert: TrackPayload = {
       ...requestedTrack,
       youtube_id: youtubeId || undefined,
     };
-    let replacementMessage: string | null = null;
 
-    const duplicateFound = existingTracks.some((track) => isDuplicateSong(trackToInsert, track));
-    if (duplicateFound) {
-      const fallbackTrack = await getFallbackTrack(
-        supabase,
-        existingTracks.map((track) => ({
-          spotify_id: track.spotify_id,
-          title: track.title,
-          artists: track.artists,
-        }))
-      );
-
-      trackToInsert = {
-        spotify_id: fallbackTrack.spotify_id,
-        title: fallbackTrack.title,
-        artists: fallbackTrack.artists,
-        album: fallbackTrack.album,
-        album_art_url: fallbackTrack.album_art_url,
-        preview_url: fallbackTrack.preview_url,
-        youtube_id: fallbackTrack.youtube_id || undefined,
-        duration_ms: fallbackTrack.duration_ms,
-        popularity: fallbackTrack.popularity,
-      };
-
-      replacementMessage = 'Duplicate song detected. We replaced it with a Top 100 fallback.';
-    }
-
-    const dbTrack = duplicateFound
-      ? await saveTrack(supabase, trackToInsert)
-      : await saveTrack(supabase, {
-          ...trackToInsert,
-          youtube_id: trackToInsert.youtube_id || undefined,
-        });
+    const dbTrack = await saveTrack(supabase, {
+      ...trackToInsert,
+      youtube_id: trackToInsert.youtube_id || undefined,
+    });
 
     const { data: roomSong, error: songError } = await supabase
       .from('room_songs')
@@ -307,7 +209,7 @@ export async function POST(request: NextRequest, context: RouteContext) {
     if (songError) {
       if (songError.code === '23505') {
         return NextResponse.json(
-          { success: false, error: 'This song has already been added to the room' },
+          { success: false, error: 'This song is already in your pick list' },
           { status: 409 }
         );
       }
@@ -322,7 +224,6 @@ export async function POST(request: NextRequest, context: RouteContext) {
         track: dbTrack,
         songs_added: (playerSongCount ?? 0) + 1,
         songs_quota: songsPerPlayer,
-        replacement_message: replacementMessage,
       },
     });
   } catch (err) {
