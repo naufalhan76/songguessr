@@ -512,7 +512,7 @@ export default function RoomLobby({ roomCode, onSelectionStarted, onPlayerIdSet 
                     <div className="space-y-2 rounded-2xl border border-white/10 bg-black/20 p-4">
                       <label className="text-[0.65rem] uppercase tracking-[0.28em] text-white/40">Time per round</label>
                       <select value={editTime} onChange={(e) => setEditTime(Number(e.target.value))} className="w-full rounded-xl border border-white/10 bg-black/40 px-3 py-2.5 text-sm font-medium text-white outline-none transition focus:border-white/25">
-                        {[10, 15, 20, 25, 30, 45, 60, 120].map((v) => <option key={v} value={v}>{v} seconds</option>)}
+                        {[10, 15, 20, 25, 30, 45, 60].map((v) => <option key={v} value={v}>{v} seconds</option>)}
                       </select>
                     </div>
                     <div className="space-y-2 rounded-2xl border border-white/10 bg-black/20 p-4">
@@ -531,6 +531,7 @@ export default function RoomLobby({ roomCode, onSelectionStarted, onPlayerIdSet 
                     <div className="space-y-2 rounded-2xl border border-white/10 bg-black/20 p-4 md:col-span-2">
                       <label className="text-[0.65rem] uppercase tracking-[0.28em] text-white/40">Song Selection Time</label>
                       <select value={editSelectionTime} onChange={(e) => setEditSelectionTime(Number(e.target.value))} className="w-full rounded-xl border border-white/10 bg-black/40 px-3 py-2.5 text-sm font-medium text-white outline-none transition focus:border-white/25">
+                        <option value={2}>2 minutes</option>
                         <option value={5}>5 minutes</option>
                         <option value={10}>10 minutes</option>
                         <option value={15}>15 minutes</option>
