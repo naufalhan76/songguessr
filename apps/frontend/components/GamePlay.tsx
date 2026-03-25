@@ -335,7 +335,7 @@ export default function GamePlay({
   }, [hasMatchStarted, isHost, scheduledStartAt]);
 
   useEffect(() => {
-    if (!currentRound?.id) return;
+    if (!currentRound?.id || !hasMatchStarted) return;
 
     const fetchAnsweredPlayers = async () => {
       const { data } = await supabase
@@ -344,11 +344,12 @@ export default function GamePlay({
         .eq('round_id', currentRound.id);
 
       if (data) {
-        setAnsweredPlayerIds(data.map((answer) => answer.player_id));
+        setAnsweredPlayerIds(Array.from(new Set(data.map((answer) => answer.player_id))));
       }
     };
 
     fetchAnsweredPlayers();
+    const pollInterval = window.setInterval(fetchAnsweredPlayers, 900);
 
     const channel = supabase
       .channel(`round-answers:${currentRound.id}`)
@@ -365,9 +366,10 @@ export default function GamePlay({
       .subscribe();
 
     return () => {
+      window.clearInterval(pollInterval);
       supabase.removeChannel(channel);
     };
-  }, [currentRound?.id, markPlayerAnswered]);
+  }, [currentRound?.id, hasMatchStarted, markPlayerAnswered]);
 
   useEffect(() => {
     if (!currentRound || !hasMatchStarted) return;
