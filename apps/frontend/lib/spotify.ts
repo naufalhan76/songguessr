@@ -59,7 +59,7 @@ export async function searchTracks(query: string, limit: number = 20) {
   const params = new URLSearchParams({
     q: query,
     type: 'track',
-    limit: String(limit),
+    limit: '50', // Fetch more to ensure we have enough with preview_urls after filtering
     market: 'US',
   });
 
@@ -74,25 +74,27 @@ export async function searchTracks(query: string, limit: number = 20) {
 
   const data = await response.json();
 
-  return (data.tracks?.items ?? []).map((track: {
-    id: string;
-    name: string;
-    artists: Array<{ name: string }>;
-    album: { name: string; images: Array<{ url: string }> };
-    preview_url: string | null;
-    duration_ms: number;
-    popularity: number;
-  }) => ({
-    spotify_id: track.id,
-    title: track.name,
-    artists: track.artists.map((a) => a.name),
-    album: track.album.name,
-    album_art_url: track.album.images?.[0]?.url ?? '',
-    preview_url: track.preview_url,
-    has_preview: !!track.preview_url,
-    duration_ms: track.duration_ms,
-    popularity: track.popularity,
-  }));
+  return (data.tracks?.items ?? [])
+    .slice(0, limit) // Apply requested limit directly
+    .map((track: {
+      id: string;
+      name: string;
+      artists: Array<{ name: string }>;
+      album: { name: string; images: Array<{ url: string }> };
+      preview_url: string | null;
+      duration_ms: number;
+      popularity: number;
+    }) => ({
+      spotify_id: track.id,
+      title: track.name,
+      artists: track.artists.map((a) => a.name),
+      album: track.album.name,
+      album_art_url: track.album.images?.[0]?.url ?? '',
+      preview_url: track.preview_url,
+      has_preview: !!track.preview_url,
+      duration_ms: track.duration_ms,
+      popularity: track.popularity,
+    }));
 }
 
 /**

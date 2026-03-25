@@ -223,6 +223,7 @@ export default function GamePlay({ room, players, currentPlayerId, roomCode, tra
           </div>
           <AudioPlayer
             src={correctTrack.preview_url}
+            youtubeId={correctTrack.youtube_id}
             autoPlay
             maxDuration={room.settings.time_per_round}
           />

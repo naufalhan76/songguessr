@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createServiceClient } from '@/lib/supabase-server';
+import YouTube from 'youtube-sr';
 
 interface RouteContext {
   params: Promise<{ code: string }>;
@@ -80,11 +81,17 @@ export async function POST(request: NextRequest, context: RouteContext) {
       );
     }
 
+    let youtubeId = null;
     if (!spotifyTrack.preview_url) {
-      return NextResponse.json(
-        { success: false, error: 'This track does not have an audio preview available' },
-        { status: 400 }
-      );
+      try {
+        const query = `${spotifyTrack.artists.join(' ')} ${spotifyTrack.title} audiohq`;
+        const video = await YouTube.searchOne(query, 'video', true);
+        if (video && video.id) {
+          youtubeId = video.id;
+        }
+      } catch (e) {
+        console.error('youtube-sr fetch error', e);
+      }
     }
 
     // Get room
@@ -152,7 +159,8 @@ export async function POST(request: NextRequest, context: RouteContext) {
           artists: spotifyTrack.artists,
           album: spotifyTrack.album,
           album_art_url: spotifyTrack.album_art_url,
-          preview_url: spotifyTrack.preview_url,
+          preview_url: spotifyTrack.preview_url || null,
+          youtube_id: youtubeId,
           duration_ms: spotifyTrack.duration_ms,
           popularity: spotifyTrack.popularity,
           cached_at: new Date().toISOString(),

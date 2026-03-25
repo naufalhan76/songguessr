@@ -141,7 +141,7 @@ export default function SongSelection({
         console.error('Search failed', e);
       }
       setIsSearching(false);
-    }, 400);
+    }, 800);
 
     return () => {
       if (searchTimeoutRef.current) clearTimeout(searchTimeoutRef.current);

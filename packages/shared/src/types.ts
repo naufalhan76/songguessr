@@ -49,7 +49,8 @@ export interface Track {
   title: string;
   artists: string[];
   album: string;
-  preview_url: string;
+  preview_url: string | null;
+  youtube_id: string | null;
   duration_ms: number;
   popularity: number;
   album_art_url: string;

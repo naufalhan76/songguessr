@@ -157,6 +157,25 @@ export default function RoomLobby({ roomCode, onSelectionStarted, onPlayerIdSet 
     if (e.key === 'Enter') handleJoinRoom();
   };
 
+  const handleLeaveRoom = async () => {
+    if (!currentPlayerId) {
+      window.location.href = '/';
+      return;
+    }
+    
+    try {
+      await fetch(`/api/rooms/${roomCode}/leave`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ player_id: currentPlayerId }),
+      });
+    } catch (e) {
+      console.error('Failed to leave room', e);
+    }
+    
+    window.location.href = '/';
+  };
+
   // Settings editing handlers
   const handleStartEditSettings = useCallback(() => {
     setEditRounds(rounds);
@@ -341,7 +360,7 @@ export default function RoomLobby({ roomCode, onSelectionStarted, onPlayerIdSet 
           <Button variant="outline" className="border-white/15 text-white" onPress={handleCopyCode}>
             Copy code
           </Button>
-          <Button variant="primary" className="bg-white text-black" onPress={() => window.location.href = '/'}>
+          <Button variant="primary" className="bg-white text-black" onPress={handleLeaveRoom}>
             Leave room
           </Button>
         </div>

@@ -73,19 +73,26 @@ export default function RoomClient({ roomCode }: RoomClientProps) {
       .channel(`room-phase:${room.id}`)
       .on(
         'postgres_changes',
-        { event: 'UPDATE', schema: 'public', table: 'rooms', filter: `id=eq.${room.id}` },
+        { event: '*', schema: 'public', table: 'rooms', filter: `id=eq.${room.id}` },
         (payload) => {
-          const newRoom = payload.new as unknown as Room;
-          setRoom(newRoom);
+          if (payload.eventType === 'DELETE') {
+            window.location.href = '/?error=' + encodeURIComponent('Room was closed by the host.');
+            return;
+          }
 
-          if (newRoom.status === 'selecting' && phase === 'lobby') {
-            setPhase('selecting');
-          }
-          if (newRoom.status === 'active' && (phase === 'selecting' || phase === 'lobby')) {
-            fetchRoomData().then(() => setPhase('playing'));
-          }
-          if (newRoom.status === 'finished' && phase !== 'finished') {
-            setPhase('finished');
+          if (payload.eventType === 'UPDATE') {
+            const newRoom = payload.new as unknown as Room;
+            setRoom(newRoom);
+
+            if (newRoom.status === 'selecting' && phase === 'lobby') {
+              setPhase('selecting');
+            }
+            if (newRoom.status === 'active' && (phase === 'selecting' || phase === 'lobby')) {
+              fetchRoomData().then(() => setPhase('playing'));
+            }
+            if (newRoom.status === 'finished' && phase !== 'finished') {
+              setPhase('finished');
+            }
           }
         }
       )
