@@ -1,10 +1,11 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useCallback } from 'react';
 import { Player, Room, Track } from '@songguessr/shared';
 import { supabase } from '@/lib/supabase';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Button, Card, Chip, Separator } from '@heroui/react';
+import confetti from 'canvas-confetti';
 
 interface LeaderboardProps {
   room: Room;
@@ -26,26 +27,50 @@ export default function Leaderboard({ room, players, currentUserId, roomCode, tr
   const [mostPlayedArtist, setMostPlayedArtist] = useState<string>('');
   const [isLeaving, setIsLeaving] = useState(false);
 
+  const fireConfetti = useCallback(() => {
+    const duration = 3000;
+    const end = Date.now() + duration;
+
+    const frame = () => {
+      confetti({
+        particleCount: 3,
+        angle: 60,
+        spread: 55,
+        origin: { x: 0 },
+        colors: ['#34d399', '#fbbf24', '#60a5fa', '#f472b6'],
+      });
+      confetti({
+        particleCount: 3,
+        angle: 120,
+        spread: 55,
+        origin: { x: 1 },
+        colors: ['#34d399', '#fbbf24', '#60a5fa', '#f472b6'],
+      });
+      if (Date.now() < end) {
+        requestAnimationFrame(frame);
+      }
+    };
+
+    // Initial big burst
+    confetti({
+      particleCount: 100,
+      spread: 100,
+      origin: { y: 0.6 },
+      colors: ['#34d399', '#fbbf24', '#60a5fa', '#f472b6', '#a78bfa'],
+    });
+
+    // Continuous side bursts
+    frame();
+  }, []);
+
   useEffect(() => {
     const fetchLeaderboard = async () => {
-      // Fetch final player data
+      // Fetch final player data (display_name is stored directly on the players table)
       const { data: freshPlayers } = await supabase
         .from('players')
         .select('*')
         .eq('room_id', room.id)
         .order('score', { ascending: false });
-
-      // Fetch user profiles for display names
-      const userIds = (freshPlayers ?? players).map((p) => p.user_id);
-      const { data: users } = await supabase
-        .from('users')
-        .select('id, display_name')
-        .in('id', userIds);
-
-      const userMap = new Map<string, string>();
-      for (const u of (users as any[]) ?? []) {
-        userMap.set(u.id, (u.display_name as string) ?? 'Player');
-      }
 
       // Fetch answers
       const { data: rounds } = await supabase
@@ -74,7 +99,7 @@ export default function Leaderboard({ room, players, currentUserId, roomCode, tr
 
         playerList.push({
           ...p,
-          display_name: userMap.get(p.user_id) ?? 'Player',
+          display_name: p.display_name || 'Player',
           correct_count: correctCount,
           total_rounds: totalRounds,
         } as PlayerWithAnswers);
@@ -95,6 +120,12 @@ export default function Leaderboard({ room, players, currentUserId, roomCode, tr
       if (topArtist) setMostPlayedArtist(topArtist[0]);
 
       setLoading(false);
+
+      // Fire confetti if the current user is the winner
+      const sortedPlayers = [...playerList].sort((a, b) => b.score - a.score);
+      if (sortedPlayers.length > 0 && sortedPlayers[0].user_id === currentUserId) {
+        fireConfetti();
+      }
     };
 
     fetchLeaderboard();
