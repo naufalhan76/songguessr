@@ -42,7 +42,9 @@ export default function RootLayout({
       <body className="min-h-screen bg-[#0a0a0a] text-[#f5f5f5]">
         <main className="relative isolate flex min-h-screen flex-col">
           <div aria-hidden="true" className="music-atmosphere" />
-          {children}
+          <div className="page-foreground">
+            {children}
+          </div>
           <footer className="border-t border-white/10 px-4 py-6 text-center text-sm text-white/45 sm:px-6">
             <div className="mx-auto flex max-w-7xl flex-wrap items-center justify-center gap-x-2 gap-y-1">
               <span>2026 Created with love by</span>
