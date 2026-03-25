@@ -708,7 +708,7 @@ export default function GamePlay({
 
   if (!hasMatchStarted) {
     return (
-      <main className="mx-auto flex min-h-screen w-full max-w-4xl flex-col justify-center gap-6 px-4 py-5 text-white sm:px-6">
+      <main className="mx-auto flex min-h-screen w-full max-w-4xl flex-col justify-center gap-6 px-3 py-4 text-white sm:px-6">
         <Card className="border border-white/10 bg-white/[0.04] shadow-[0_20px_80px_rgba(0,0,0,0.38)]">
           <Card.Content className="space-y-8 p-8 sm:p-10">
             <div className="space-y-3 text-center">
@@ -749,7 +749,7 @@ export default function GamePlay({
                 return (
                   <div
                     key={player.id}
-                    className={`flex items-center justify-between rounded-2xl border px-4 py-4 ${
+                    className={`flex flex-col items-start gap-3 rounded-2xl border px-4 py-4 sm:flex-row sm:items-center sm:justify-between ${
                       isSynced
                         ? 'border-emerald-400/25 bg-emerald-400/10'
                         : 'border-white/10 bg-black/20'
@@ -828,7 +828,7 @@ export default function GamePlay({
   const timerBarWidth = (timeRemaining / room.settings.time_per_round) * 100;
 
   return (
-    <main className="mx-auto flex min-h-screen w-full max-w-4xl flex-col gap-6 px-4 py-5 text-white sm:px-6">
+    <main className="mx-auto flex min-h-screen w-full max-w-4xl flex-col gap-6 px-3 py-4 text-white sm:px-6">
       <header className="flex flex-col gap-4 border-b border-white/10 pb-5 sm:flex-row sm:items-center sm:justify-between">
         <div className="flex items-center gap-3">
           <Chip variant="soft" className="border border-white/10 bg-white/5 text-white/70">
@@ -856,7 +856,7 @@ export default function GamePlay({
             </Chip>
           )}
         </div>
-        <div className="flex items-center gap-4">
+        <div className="flex w-full items-center justify-between gap-4 sm:w-auto sm:justify-end">
           <div className={`font-mono text-3xl font-bold ${timerColor} transition-colors`}>
             {timeRemaining}s
           </div>
@@ -930,7 +930,7 @@ export default function GamePlay({
                 type="button"
                 onClick={() => submitAnswer(track.id)}
                 disabled={!!selectedAnswer || showingResults}
-                className={`flex items-center gap-4 rounded-2xl border ${borderColor} ${bgColor} p-4 text-left transition-all hover:bg-white/[0.08] disabled:cursor-not-allowed disabled:hover:bg-transparent`}
+                className={`flex flex-col items-start gap-3 rounded-2xl border ${borderColor} ${bgColor} p-4 text-left transition-all hover:bg-white/[0.08] disabled:cursor-not-allowed disabled:hover:bg-transparent sm:flex-row sm:items-center sm:gap-4`}
               >
                 <div className="grid h-10 w-10 shrink-0 place-items-center rounded-xl border border-white/10 bg-black/30 font-mono text-sm text-white/60">
                   {String.fromCharCode(65 + index)}
@@ -966,10 +966,10 @@ export default function GamePlay({
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: -10 }}
-            className="fixed inset-x-0 bottom-6 z-50 flex justify-center px-6"
+            className="fixed inset-x-0 bottom-4 z-50 flex justify-center px-4 sm:bottom-6 sm:px-6"
           >
             <Card className="border border-violet-400/30 bg-violet-400/10 shadow-[0_20px_80px_rgba(0,0,0,0.5)]">
-              <Card.Content className="flex items-center gap-4 px-6 py-4">
+              <Card.Content className="flex flex-col items-start gap-3 px-5 py-4 sm:flex-row sm:items-center sm:gap-4 sm:px-6">
                 <div className="grid h-12 w-12 place-items-center rounded-full bg-violet-400/20 text-violet-300">
                   <div className="h-5 w-5 animate-spin rounded-full border-2 border-violet-200/25 border-t-violet-200" />
                 </div>
@@ -988,10 +988,10 @@ export default function GamePlay({
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: -10 }}
-            className="fixed inset-x-0 bottom-6 z-50 flex justify-center px-6"
+            className="fixed inset-x-0 bottom-4 z-50 flex justify-center px-4 sm:bottom-6 sm:px-6"
           >
             <Card className={`border ${answerResult.correct ? 'border-emerald-400/30 bg-emerald-400/10' : 'border-red-400/30 bg-red-400/10'} shadow-[0_20px_80px_rgba(0,0,0,0.5)]`}>
-              <Card.Content className="flex items-center gap-4 px-6 py-4">
+              <Card.Content className="flex flex-col items-start gap-3 px-5 py-4 sm:flex-row sm:items-center sm:gap-4 sm:px-6">
                 <div className={`grid h-12 w-12 place-items-center rounded-full ${answerResult.correct ? 'bg-emerald-400/20 text-emerald-300' : 'bg-red-400/20 text-red-300'}`}>
                   {answerResult.correct ? '✓' : '✕'}
                 </div>
@@ -1027,13 +1027,13 @@ export default function GamePlay({
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            className="fixed inset-0 z-[90] flex items-center justify-center bg-black/70 px-6 backdrop-blur-md"
+            className="fixed inset-0 z-[90] flex items-center justify-center bg-black/70 px-4 backdrop-blur-md sm:px-6"
           >
             <motion.div
               initial={{ scale: 0.96, y: 10 }}
               animate={{ scale: 1, y: 0 }}
               exit={{ scale: 0.98, y: -8 }}
-              className="w-full max-w-xl rounded-[2rem] border border-white/10 bg-[#0b0d12]/95 p-8 text-center shadow-[0_30px_120px_rgba(0,0,0,0.55)]"
+              className="w-full max-w-xl rounded-[1.7rem] border border-white/10 bg-[#0b0d12]/95 p-5 text-center shadow-[0_30px_120px_rgba(0,0,0,0.55)] sm:rounded-[2rem] sm:p-8"
             >
               <div className="text-[0.65rem] uppercase tracking-[0.4em] text-white/40">
                 {getIntermissionCopy().eyebrow}
@@ -1066,7 +1066,7 @@ export default function GamePlay({
               </div>
 
               <div className="mt-4 rounded-[1.75rem] border border-white/10 bg-white/[0.04] px-4 py-5 sm:px-5">
-                <div className="flex items-center justify-between gap-4">
+                <div className="flex flex-col items-start gap-3 sm:flex-row sm:items-center sm:justify-between">
                   <div>
                     <div className="text-[0.65rem] uppercase tracking-[0.28em] text-white/35">Recent ranking</div>
                     <div className="mt-1 text-lg font-semibold text-white">

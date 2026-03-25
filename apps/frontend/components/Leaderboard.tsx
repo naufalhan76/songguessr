@@ -462,12 +462,12 @@ export default function Leaderboard({ room, players, currentUserId, roomCode, tr
   const winner = leaderboard[0];
 
   return (
-    <main className="mx-auto flex min-h-screen w-full max-w-4xl flex-col gap-8 px-4 py-5 text-white sm:px-6">
+    <main className="mx-auto flex min-h-screen w-full max-w-4xl flex-col gap-6 px-3 py-4 text-white sm:gap-8 sm:px-6">
       <header className="flex flex-col items-center gap-4 border-b border-white/10 pb-6 text-center">
         <Chip variant="soft" className="border border-emerald-400/20 bg-emerald-400/10 text-emerald-300">
           Game finished
         </Chip>
-        <h1 className="text-4xl font-semibold tracking-[-0.06em] text-white sm:text-5xl">
+        <h1 className="text-3xl font-semibold tracking-[-0.06em] text-white sm:text-5xl">
           Final standings
         </h1>
         <p className="max-w-md text-sm text-white/55">
@@ -520,7 +520,7 @@ export default function Leaderboard({ room, players, currentUserId, roomCode, tr
                 initial={{ opacity: 0, x: -10 }}
                 animate={{ opacity: 1, x: 0 }}
                 transition={{ delay: index * 0.1 }}
-                className={`flex items-center gap-4 rounded-2xl border px-4 py-4 transition-colors ${
+                className={`flex flex-col items-start gap-3 rounded-2xl border px-4 py-4 transition-colors sm:flex-row sm:items-center sm:gap-4 ${
                   isCurrentUser
                     ? 'border-white/20 bg-white/[0.08]'
                     : 'border-white/10 bg-black/20'
@@ -544,7 +544,7 @@ export default function Leaderboard({ room, players, currentUserId, roomCode, tr
                     {player.correct_count}/{player.total_rounds} correct
                   </div>
                 </div>
-                <div className="text-right">
+                <div className="w-full text-left sm:w-auto sm:text-right">
                   <div className="font-mono text-lg font-semibold text-white">{player.score}</div>
                   <div className="text-xs text-white/40">points</div>
                 </div>

@@ -2,7 +2,7 @@
 
 import { useRef, useState, useEffect, useCallback } from 'react';
 import YouTube, { YouTubePlayer, YouTubeEvent } from 'react-youtube';
-import { isAudioPlaybackPrimed } from '@/lib/audio';
+import { isAudioPlaybackPrimed, primeAudioPlayback } from '@/lib/audio';
 
 interface AudioPlayerProps {
   src: string | null;
@@ -29,6 +29,7 @@ export default function AudioPlayer({
   const previewStartRef = useRef(0);
   const hasSeekedRef = useRef(false);
   const autoplayCheckRef = useRef<number | null>(null);
+  const statusResetRef = useRef<number | null>(null);
 
   const [isPlaying, setIsPlaying] = useState(false);
   const [progress, setProgress] = useState(0);
@@ -36,6 +37,9 @@ export default function AudioPlayer({
   const [isYoutubeReady, setIsYoutubeReady] = useState(false);
   const [autoplayBlocked, setAutoplayBlocked] = useState(false);
   const [audioPrimed] = useState(() => isAudioPlaybackPrimed());
+  const [isAttemptingPlayback, setIsAttemptingPlayback] = useState(false);
+  const [manualStartAttempts, setManualStartAttempts] = useState(0);
+  const [playbackNotice, setPlaybackNotice] = useState<string | null>(null);
 
   const forceYoutube = true;
   const isYoutubeMode = forceYoutube ? !!youtubeId : (!src && !!youtubeId);
@@ -56,7 +60,14 @@ export default function AudioPlayer({
     }
   }, []);
 
-  const scheduleAutoplayCheck = useCallback(() => {
+  const clearPlaybackNotice = useCallback(() => {
+    if (statusResetRef.current) {
+      window.clearTimeout(statusResetRef.current);
+      statusResetRef.current = null;
+    }
+  }, []);
+
+  const scheduleAutoplayCheck = useCallback((mode: 'auto' | 'manual' = 'auto') => {
     clearAutoplayCheck();
     autoplayCheckRef.current = window.setTimeout(() => {
       let actuallyPlaying = false;
@@ -71,24 +82,50 @@ export default function AudioPlayer({
         actuallyPlaying = !audioRef.current.paused;
       }
 
-      setAutoplayBlocked(autoPlay && !actuallyPlaying);
+      if (actuallyPlaying) {
+        setAutoplayBlocked(false);
+        setIsAttemptingPlayback(false);
+        if (mode === 'manual') {
+          clearPlaybackNotice();
+          setPlaybackNotice('Audio is live. You should hear the song now.');
+          statusResetRef.current = window.setTimeout(() => {
+            setPlaybackNotice(null);
+          }, 1800);
+        }
+        return;
+      }
+
+      if (autoPlay) {
+        setAutoplayBlocked(true);
+        setIsAttemptingPlayback(false);
+        setPlaybackNotice(
+          mode === 'manual'
+            ? 'Still blocked. Tap Start sound once more or use the play button below.'
+            : 'This browser still needs one tap before YouTube audio can start.'
+        );
+      }
     }, 1400);
-  }, [autoPlay, clearAutoplayCheck, isYoutubeMode]);
+  }, [autoPlay, clearAutoplayCheck, clearPlaybackNotice, isYoutubeMode]);
 
   useEffect(() => {
     clearAutoplayCheck();
+    clearPlaybackNotice();
     setAutoplayBlocked(false);
     setIsPlaying(false);
     setProgress(0);
     setCurrentTime(0);
     setIsYoutubeReady(false);
+    setIsAttemptingPlayback(false);
+    setPlaybackNotice(null);
+    setManualStartAttempts(0);
     hasSeekedRef.current = false;
-  }, [clearAutoplayCheck, src, youtubeId]);
+  }, [clearAutoplayCheck, clearPlaybackNotice, src, youtubeId]);
 
   useEffect(() => {
     return () => {
       cancelAnimationFrame(animRef.current);
       clearAutoplayCheck();
+      clearPlaybackNotice();
       if (audioRef.current) {
         audioRef.current.pause();
         audioRef.current.src = '';
@@ -101,7 +138,7 @@ export default function AudioPlayer({
         }
       }
     };
-  }, [clearAutoplayCheck]);
+  }, [clearAutoplayCheck, clearPlaybackNotice]);
 
   const updateProgress = useCallback(() => {
     let time = 0;
@@ -157,6 +194,7 @@ export default function AudioPlayer({
     const handlePlay = () => {
       setIsPlaying(true);
       setAutoplayBlocked(false);
+      setIsAttemptingPlayback(false);
       requestAnimationFrame(updateProgress);
     };
 
@@ -198,8 +236,15 @@ export default function AudioPlayer({
     };
   }, [isPlaying, updateProgress]);
 
-  const startPlayback = useCallback(() => {
+  const startPlayback = useCallback(async (mode: 'auto' | 'manual' = 'auto') => {
+    clearPlaybackNotice();
     setAutoplayBlocked(false);
+    setIsAttemptingPlayback(true);
+    if (mode === 'manual') {
+      setManualStartAttempts((prev) => prev + 1);
+      setPlaybackNotice('Trying to unlock YouTube audio...');
+      await primeAudioPlayback().catch(() => false);
+    }
 
     if (isYoutubeMode && ytPlayerRef.current) {
       try {
@@ -209,9 +254,11 @@ export default function AudioPlayer({
           ytPlayerRef.current.seekTo(previewStartRef.current, true);
         }
         ytPlayerRef.current.playVideo();
-        scheduleAutoplayCheck();
+        scheduleAutoplayCheck(mode);
       } catch {
         setAutoplayBlocked(true);
+        setIsAttemptingPlayback(false);
+        setPlaybackNotice('This browser ignored the first tap. Try Start sound again.');
       }
       return;
     }
@@ -222,10 +269,12 @@ export default function AudioPlayer({
       }
       audioRef.current.play().catch(() => {
         setAutoplayBlocked(true);
+        setIsAttemptingPlayback(false);
+        setPlaybackNotice('This browser ignored the first tap. Try Start sound again.');
       });
-      scheduleAutoplayCheck();
+      scheduleAutoplayCheck(mode);
     }
-  }, [isYoutubeMode, maxDuration, scheduleAutoplayCheck]);
+  }, [clearPlaybackNotice, isYoutubeMode, maxDuration, scheduleAutoplayCheck]);
 
   const togglePlay = () => {
     if (isYoutubeMode && ytPlayerRef.current) {
@@ -233,8 +282,9 @@ export default function AudioPlayer({
         const state = ytPlayerRef.current.getPlayerState();
         if (state === 1) {
           ytPlayerRef.current.pauseVideo();
+          setPlaybackNotice(null);
         } else {
-          startPlayback();
+          void startPlayback('manual');
         }
       } catch {
         // ignore
@@ -244,9 +294,10 @@ export default function AudioPlayer({
 
     if (audioRef.current) {
       if (audioRef.current.paused) {
-        startPlayback();
+        void startPlayback('manual');
       } else {
         audioRef.current.pause();
+        setPlaybackNotice(null);
       }
     }
   };
@@ -276,8 +327,7 @@ export default function AudioPlayer({
 
       if (autoPlay) {
         try {
-          player.playVideo();
-          scheduleAutoplayCheck();
+          void startPlayback('auto');
         } catch {
           setAutoplayBlocked(true);
         }
@@ -295,9 +345,13 @@ export default function AudioPlayer({
     if (event.data === 1) {
       clearAutoplayCheck();
       setAutoplayBlocked(false);
+      setIsAttemptingPlayback(false);
       setIsPlaying(true);
       requestAnimationFrame(updateProgress);
     } else if (event.data === 2 || event.data === 0) {
+      if (event.data === 2) {
+        setIsAttemptingPlayback(false);
+      }
       setIsPlaying(false);
       if (event.data === 0) {
         onEnded?.();
@@ -329,21 +383,59 @@ export default function AudioPlayer({
         </div>
       )}
 
-      {autoplayBlocked && (
+      {(autoplayBlocked || isAttemptingPlayback) && (
         <div className="rounded-2xl border border-amber-400/20 bg-amber-400/10 p-4 text-center">
-          <div className="text-sm font-semibold text-white">Tap once to start audio</div>
+          <div className="text-sm font-semibold text-white">
+            {isAttemptingPlayback ? 'Starting audio...' : 'Tap once to start audio'}
+          </div>
           <p className="mt-1 text-xs leading-5 text-amber-100/75">
-            {audioPrimed
-              ? 'This device was already primed in the lobby, but this browser still wants one extra tap for YouTube.'
-              : 'Some mobile browsers block autoplay with sound. One tap will start the music.'}
+            {isAttemptingPlayback
+              ? 'Hold on for a second. We are retrying YouTube playback for this device.'
+              : audioPrimed
+                ? 'This device was already primed in the lobby, but this browser still wants one extra tap for YouTube.'
+                : 'Some mobile browsers block autoplay with sound. One tap will start the music.'}
           </p>
-          <button
-            type="button"
-            onClick={startPlayback}
-            className="mt-3 inline-flex h-10 items-center justify-center rounded-xl bg-amber-300 px-4 text-sm font-semibold text-black transition hover:bg-amber-200"
-          >
-            Start sound
-          </button>
+
+          <div className="mt-4 flex items-end justify-center gap-1.5">
+            {[0, 1, 2, 3].map((bar) => (
+              <div
+                key={bar}
+                className={`w-2 rounded-full bg-amber-200/85 ${isAttemptingPlayback ? 'animate-pulse' : ''}`}
+                style={{
+                  height: `${18 + (bar % 2 === 0 ? 10 : 22)}px`,
+                  animationDelay: `${bar * 120}ms`,
+                }}
+              />
+            ))}
+          </div>
+
+          {playbackNotice && (
+            <div className={`mt-3 rounded-xl border px-3 py-2 text-xs leading-5 ${
+              autoplayBlocked && !isAttemptingPlayback
+                ? 'border-amber-200/20 bg-black/15 text-amber-50/90'
+                : 'border-emerald-200/20 bg-black/15 text-emerald-50/90'
+            }`}>
+              {playbackNotice}
+            </div>
+          )}
+
+          <div className="mt-4 flex flex-col gap-2 sm:flex-row sm:justify-center">
+            <button
+              type="button"
+              onClick={() => void startPlayback('manual')}
+              disabled={isAttemptingPlayback}
+              className="inline-flex h-11 items-center justify-center rounded-xl bg-amber-300 px-4 text-sm font-semibold text-black transition hover:bg-amber-200 disabled:cursor-not-allowed disabled:opacity-60"
+            >
+              {isAttemptingPlayback
+                ? 'Starting...'
+                : manualStartAttempts > 0
+                  ? 'Try start sound again'
+                  : 'Start sound'}
+            </button>
+            <div className="text-[11px] uppercase tracking-[0.24em] text-amber-50/65 sm:self-center">
+              or tap play below
+            </div>
+          </div>
         </div>
       )}
 

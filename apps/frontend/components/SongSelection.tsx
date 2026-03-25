@@ -360,7 +360,7 @@ export default function SongSelection({
   const alreadyAdded = new Set(roomSongs.map((song) => song.track?.spotify_id).filter(Boolean));
 
   return (
-    <main className="mx-auto flex min-h-screen w-full max-w-7xl flex-col gap-6 px-4 py-5 text-white sm:px-6 lg:px-8">
+    <main className="mx-auto flex min-h-screen w-full max-w-7xl flex-col gap-6 px-3 py-4 text-white sm:px-6 lg:px-8">
       <header className="flex flex-col gap-4 border-b border-white/10 pb-5 sm:flex-row sm:items-center sm:justify-between">
         <div className="space-y-2">
           <div className="flex flex-wrap items-center gap-3">
@@ -378,7 +378,7 @@ export default function SongSelection({
             Search and add {songsPerPlayer} songs. When the timer runs out, missing slots will be auto-filled.
           </p>
         </div>
-        <div className="flex items-center gap-4">
+        <div className="flex w-full items-center justify-between gap-4 sm:w-auto sm:justify-end">
           <div className={`font-mono text-3xl font-bold ${timerColor} transition-colors`}>
             {formatTime(timeRemaining)}
           </div>
@@ -459,7 +459,7 @@ export default function SongSelection({
                   animate={{ opacity: 1, y: 0 }}
                   exit={{ opacity: 0, y: -8 }}
                   transition={{ delay: index * 0.04 }}
-                  className="flex items-center gap-4 rounded-2xl border border-white/10 bg-white/[0.04] p-3 transition-colors hover:bg-white/[0.07]"
+                  className="flex flex-col items-start gap-3 rounded-2xl border border-white/10 bg-white/[0.04] p-3 transition-colors hover:bg-white/[0.07] sm:flex-row sm:items-center"
                 >
                   {track.album_art_url && (
                     <img
@@ -473,7 +473,7 @@ export default function SongSelection({
                     <div className="mt-0.5 truncate text-sm text-white/50">{track.artists.join(', ')}</div>
                     <div className="mt-0.5 truncate text-xs text-white/30">{track.album}</div>
                   </div>
-                  <div className="flex shrink-0 items-center gap-2">
+                  <div className="flex w-full shrink-0 items-center justify-between gap-2 sm:w-auto sm:justify-end">
                     {!track.has_preview && (
                       <Chip variant="soft" className="border border-amber-400/20 bg-amber-400/10 text-amber-300">
                         No preview
@@ -671,7 +671,7 @@ export default function SongSelection({
               initial={{ scale: 0.96, y: 10 }}
               animate={{ scale: 1, y: 0 }}
               exit={{ scale: 0.98, y: -6 }}
-              className="w-full max-w-md rounded-[2rem] border border-white/10 bg-[#090b12]/95 p-8 text-center shadow-[0_30px_120px_rgba(0,0,0,0.55)]"
+              className="w-full max-w-md rounded-[1.7rem] border border-white/10 bg-[#090b12]/95 p-6 text-center shadow-[0_30px_120px_rgba(0,0,0,0.55)] sm:rounded-[2rem] sm:p-8"
             >
               <div className="mx-auto mb-5 grid h-16 w-16 place-items-center rounded-full border border-violet-400/20 bg-violet-400/10">
                 <div className="h-8 w-8 animate-spin rounded-full border-4 border-violet-300/20 border-t-violet-300" />

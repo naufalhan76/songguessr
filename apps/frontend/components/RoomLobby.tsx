@@ -297,9 +297,9 @@ export default function RoomLobby({ roomCode, onSelectionStarted, onPlayerIdSet 
 
   if (loading) {
     return (
-      <main className="mx-auto flex min-h-screen w-full max-w-7xl items-center justify-center px-4 py-5 text-white">
+      <main className="mx-auto flex min-h-screen w-full max-w-7xl items-center justify-center px-3 py-4 text-white sm:px-4 sm:py-5">
         <Card className="border border-white/10 bg-white/[0.04] shadow-[0_20px_80px_rgba(0,0,0,0.38)]">
-          <Card.Content className="flex flex-col items-center gap-4 p-10">
+          <Card.Content className="flex flex-col items-center gap-4 p-6 text-center sm:p-10">
             <div className="h-8 w-8 animate-spin rounded-full border-2 border-white/20 border-t-white" />
             <div className="text-sm text-white/55">Loading room...</div>
           </Card.Content>
@@ -310,9 +310,9 @@ export default function RoomLobby({ roomCode, onSelectionStarted, onPlayerIdSet 
 
   if (error && !room) {
     return (
-      <main className="mx-auto flex min-h-screen w-full max-w-7xl items-center justify-center px-4 py-5 text-white">
+      <main className="mx-auto flex min-h-screen w-full max-w-7xl items-center justify-center px-3 py-4 text-white sm:px-4 sm:py-5">
         <Card className="border border-white/10 bg-white/[0.04] shadow-[0_20px_80px_rgba(0,0,0,0.38)]">
-          <Card.Content className="flex flex-col items-center gap-4 p-10 text-center">
+          <Card.Content className="flex flex-col items-center gap-4 p-6 text-center sm:p-10">
             <div className="text-4xl">🚫</div>
             <div>
               <div className="text-xl font-semibold text-white">Room not found</div>
@@ -330,9 +330,9 @@ export default function RoomLobby({ roomCode, onSelectionStarted, onPlayerIdSet 
   // Guest join screen — show before player has joined
   if (!hasJoined) {
     return (
-      <main className="mx-auto flex min-h-screen w-full max-w-7xl items-center justify-center px-4 py-5 text-white">
+      <main className="mx-auto flex min-h-screen w-full max-w-7xl items-center justify-center px-3 py-4 text-white sm:px-4 sm:py-5">
         <Card className="border border-white/10 bg-white/[0.04] shadow-[0_20px_80px_rgba(0,0,0,0.38)]">
-          <Card.Content className="flex flex-col items-center gap-5 p-10 text-center">
+          <Card.Content className="flex flex-col items-center gap-5 p-6 text-center sm:p-10">
             <Chip variant="soft" className="border border-emerald-400/20 bg-emerald-400/10 text-emerald-300">
               Room {roomCode}
             </Chip>
@@ -369,7 +369,7 @@ export default function RoomLobby({ roomCode, onSelectionStarted, onPlayerIdSet 
   }
 
   return (
-    <main className="mx-auto flex min-h-screen w-full max-w-7xl flex-col gap-8 px-4 py-5 text-white sm:px-6 lg:px-8">
+    <main className="mx-auto flex min-h-screen w-full max-w-7xl flex-col gap-6 px-3 py-4 text-white sm:gap-8 sm:px-6 lg:px-8">
       <header className="flex flex-col gap-4 border-b border-white/10 pb-6 lg:flex-row lg:items-end lg:justify-between">
         <div className="space-y-3">
           <div className="flex flex-wrap items-center gap-3">
@@ -385,7 +385,7 @@ export default function RoomLobby({ roomCode, onSelectionStarted, onPlayerIdSet 
           </div>
           <div>
             {isEditingName ? (
-              <div className="flex items-center gap-3">
+              <div className="flex flex-wrap items-center gap-3">
                 <input
                   ref={nameInputRef}
                   value={editRoomName}
@@ -403,7 +403,7 @@ export default function RoomLobby({ roomCode, onSelectionStarted, onPlayerIdSet 
                 </button>
               </div>
             ) : (
-              <h1 className="group flex items-center gap-3 text-3xl font-semibold tracking-[-0.05em] text-white sm:text-5xl">
+              <h1 className="group flex flex-wrap items-center gap-3 text-2xl font-semibold tracking-[-0.05em] text-white sm:text-5xl">
                 {roomDisplayName ? (
                   <>
                     <span>{roomDisplayName}</span>
@@ -548,7 +548,7 @@ export default function RoomLobby({ roomCode, onSelectionStarted, onPlayerIdSet 
                   </div>
                 </div>
               ) : (
-                <div className="grid gap-4 md:grid-cols-5">
+                <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-5">
                   <div className="space-y-1 rounded-2xl border border-white/10 bg-black/20 p-3">
                     <div className="text-[0.65rem] uppercase tracking-[0.28em] text-white/40">Rounds</div>
                     <div className="text-sm font-medium text-white">{rounds}</div>
@@ -595,7 +595,7 @@ export default function RoomLobby({ roomCode, onSelectionStarted, onPlayerIdSet 
                 const isMe = player.id === currentPlayerId;
                 const isPlayerHost = player.id === room?.host_id;
                 return (
-                  <div key={player.id} className="flex items-center gap-4 rounded-2xl border border-white/10 bg-black/20 px-4 py-4 transition-colors hover:bg-white/[0.05]">
+                  <div key={player.id} className="flex flex-col items-start gap-3 rounded-2xl border border-white/10 bg-black/20 px-4 py-4 transition-colors hover:bg-white/[0.05] sm:flex-row sm:items-center sm:gap-4">
                     <div className="grid h-11 w-11 place-items-center rounded-full border border-white/10 bg-white/5 font-mono text-sm tracking-[0.2em] text-white/80">
                       {(player.display_name || '??').slice(0, 2).toUpperCase()}
                     </div>
@@ -757,13 +757,13 @@ export default function RoomLobby({ roomCode, onSelectionStarted, onPlayerIdSet 
               <p className="mt-1 text-sm text-white/50">Scan to join on mobile.</p>
             </Card.Header>
             <Card.Content className="space-y-5 px-6 pb-6">
-              <div className="flex items-center justify-center rounded-[2rem] border border-dashed border-white/15 bg-black/20 p-8">
+              <div className="flex items-center justify-center rounded-[2rem] border border-dashed border-white/15 bg-black/20 p-5 sm:p-8">
                 {qrUrl ? (
                   <div className="rounded-[1.5rem] bg-white p-4 shadow-[0_0_0_1px_rgba(255,255,255,0.08)]">
-                    <img src={qrUrl} alt={`QR code to join room ${roomCode}`} className="h-56 w-56 rounded-xl sm:h-64 sm:w-64" />
+                    <img src={qrUrl} alt={`QR code to join room ${roomCode}`} className="h-40 w-40 rounded-xl sm:h-56 sm:w-56 lg:h-64 lg:w-64" />
                   </div>
                 ) : (
-                  <div className="grid h-56 w-56 place-items-center rounded-[1.5rem] border border-white/10 bg-white/[0.03] text-sm text-white/35 sm:h-64 sm:w-64">
+                  <div className="grid h-40 w-40 place-items-center rounded-[1.5rem] border border-white/10 bg-white/[0.03] text-sm text-white/35 sm:h-56 sm:w-56 lg:h-64 lg:w-64">
                     QR loading
                   </div>
                 )}
@@ -810,7 +810,7 @@ export default function RoomLobby({ roomCode, onSelectionStarted, onPlayerIdSet 
               animate={{ scale: 1, opacity: 1, y: 0 }}
               exit={{ scale: 0.9, opacity: 0, y: -10 }}
               transition={{ duration: 0.35, ease: 'easeOut' }}
-              className="flex min-w-[280px] flex-col items-center gap-5 rounded-[2rem] border border-white/10 bg-[#0d0d0d]/80 px-10 py-12 text-center shadow-[0_30px_120px_rgba(0,0,0,0.55)]"
+              className="flex w-full max-w-sm flex-col items-center gap-5 rounded-[1.7rem] border border-white/10 bg-[#0d0d0d]/80 px-6 py-8 text-center shadow-[0_30px_120px_rgba(0,0,0,0.55)] sm:max-w-none sm:min-w-[280px] sm:rounded-[2rem] sm:px-10 sm:py-12"
             >
               <div className="text-[0.65rem] uppercase tracking-[0.45em] text-white/45">Starting song selection</div>
               <div className="relative grid place-items-center">
@@ -820,7 +820,7 @@ export default function RoomLobby({ roomCode, onSelectionStarted, onPlayerIdSet 
                   initial={{ scale: 0.72, opacity: 0 }}
                   animate={{ scale: 1, opacity: 1 }}
                   transition={{ duration: 0.25 }}
-                  className="relative font-mono text-[6.5rem] font-bold tracking-[-0.08em] text-white sm:text-8xl"
+                  className="relative font-mono text-[5rem] font-bold tracking-[-0.08em] text-white sm:text-8xl"
                 >
                   {countdown}
                 </motion.div>

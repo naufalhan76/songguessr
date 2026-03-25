@@ -86,12 +86,12 @@ export default function LandingPage() {
   };
 
   return (
-    <main className="mx-auto flex min-h-screen w-full max-w-7xl flex-col px-4 py-5 sm:px-6 lg:px-8">
-      <header className="flex items-center justify-center border-b border-white/10 pb-5">
-        <div className="text-xl font-bold tracking-[0.32em] text-white">muze.games</div>
+    <main className="mx-auto flex min-h-screen w-full max-w-7xl flex-col px-3 py-4 sm:px-6 lg:px-8">
+      <header className="flex items-center justify-center border-b border-white/10 pb-4 sm:pb-5">
+        <div className="text-lg font-bold tracking-[0.26em] text-white sm:text-xl sm:tracking-[0.32em]">muze.games</div>
       </header>
 
-      <section className="relative overflow-hidden rounded-[2.2rem] border border-white/8 px-3 py-8 sm:px-5 lg:px-6">
+      <section className="relative overflow-hidden rounded-[1.8rem] border border-white/8 px-3 py-6 sm:rounded-[2.2rem] sm:px-5 sm:py-8 lg:px-6">
         <div aria-hidden="true" className="absolute inset-0 bg-black/20 backdrop-blur-[7px]" />
         <div className="relative grid flex-1 gap-8 lg:grid-cols-[1.05fr_0.95fr] lg:items-center">
         <div className="space-y-8">
@@ -100,7 +100,7 @@ export default function LandingPage() {
               No login required
             </Chip>
             <div className="space-y-4">
-              <h1 className="max-w-4xl text-4xl font-semibold tracking-[-0.07em] text-white drop-shadow-[0_10px_35px_rgba(0,0,0,0.55)] sm:text-5xl lg:text-7xl">
+              <h1 className="max-w-4xl text-3xl font-semibold leading-[0.92] tracking-[-0.07em] text-white drop-shadow-[0_10px_35px_rgba(0,0,0,0.55)] sm:text-5xl lg:text-7xl">
                 Guess songs together.
                 <br />
                 Keep the round moving.
@@ -124,15 +124,15 @@ export default function LandingPage() {
           </div>
 
           {/* Create room form */}
-          <div className="space-y-3 rounded-[1.75rem] border border-white/12 bg-black/45 p-4 shadow-[0_20px_80px_rgba(0,0,0,0.28)] backdrop-blur-xl sm:p-5">
+          <div className="space-y-3 rounded-[1.5rem] border border-white/12 bg-black/45 p-4 shadow-[0_20px_80px_rgba(0,0,0,0.28)] backdrop-blur-xl sm:rounded-[1.75rem] sm:p-5">
             <input
               value={displayName}
               onChange={(e) => setDisplayName(e.target.value.slice(0, 20))}
               maxLength={20}
               placeholder="Your display name"
-              className="h-12 w-full max-w-sm rounded-2xl border border-white/18 bg-black/60 px-4 text-sm text-white outline-none transition placeholder:text-white/38 focus:border-white/34"
+              className="h-12 w-full rounded-2xl border border-white/18 bg-black/60 px-4 text-sm text-white outline-none transition placeholder:text-white/38 focus:border-white/34 sm:max-w-sm"
             />
-            <div className="flex flex-wrap items-center gap-3">
+            <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center">
               <button
                 type="button"
                 onClick={handleCreateRoom}
@@ -204,7 +204,7 @@ export default function LandingPage() {
         </div>
       </section>
 
-      <section className="relative mt-6 overflow-hidden rounded-[2rem] border border-white/8 px-3 py-8 sm:px-4">
+      <section className="relative mt-6 overflow-hidden rounded-[1.7rem] border border-white/8 px-3 py-6 sm:rounded-[2rem] sm:px-4 sm:py-8">
         <div aria-hidden="true" className="absolute inset-0 bg-black/18 backdrop-blur-[5px]" />
         <div className="relative grid gap-4 border-t border-white/10 pt-8 md:grid-cols-4">
         {steps.map((item) => (
@@ -220,7 +220,7 @@ export default function LandingPage() {
 
       {isJoinModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/72 px-4 backdrop-blur-sm">
-          <div className="w-full max-w-md rounded-[2rem] border border-white/14 bg-[#0d0d0f]/95 p-6 shadow-[0_30px_120px_rgba(0,0,0,0.55)] backdrop-blur-xl sm:p-7">
+          <div className="w-full max-w-md rounded-[1.7rem] border border-white/14 bg-[#0d0d0f]/95 p-5 shadow-[0_30px_120px_rgba(0,0,0,0.55)] backdrop-blur-xl sm:rounded-[2rem] sm:p-7">
             <div className="flex items-start justify-between gap-4">
               <div>
                 <div className="text-xs uppercase tracking-[0.38em] text-white/35">Join room</div>
@@ -256,7 +256,7 @@ export default function LandingPage() {
                 autoFocus
                 className="h-14 w-full rounded-[1.3rem] border border-white/18 bg-black/60 px-5 font-mono text-base tracking-[0.34em] text-white outline-none transition placeholder:text-white/28 focus:border-white/34"
               />
-              <div className="flex gap-3">
+              <div className="flex flex-col-reverse gap-3 sm:flex-row">
                 <button
                   type="button"
                   onClick={() => setIsJoinModalOpen(false)}
