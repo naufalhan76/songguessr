@@ -684,24 +684,27 @@ export default function RoomLobby({ roomCode, onSelectionStarted, onPlayerIdSet 
                   </div>
                 )}
               </div>
-              <div className="space-y-4 text-center">
-                <div>
-                  <div className="text-sm font-medium text-white">Tap or scan from mobile</div>
-                  <div className="mt-1 text-sm text-white/50">
-                    Or visit <span className="font-mono text-white/75">{joinUrl || `/${roomCode}`}</span>
-                  </div>
-                </div>
-                <Button 
-                  className="w-full border border-white/15 bg-white/10 text-white font-medium transition hover:bg-white/20"
-                  onPress={handleShareLink}
+              <div className="space-y-3 text-center">
+                <div className="text-sm font-medium text-white">Tap to copy or share link</div>
+                <button 
+                  type="button"
+                  onClick={handleShareLink}
+                  className="group flex w-full items-center justify-between rounded-xl border border-white/10 bg-black/30 px-4 py-3 text-left transition hover:border-white/20 hover:bg-white/[0.05]"
+                  title="Share or copy room link"
                 >
-                  <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="mr-2">
-                    <path d="M4 12v8a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8"/>
-                    <polyline points="16 6 12 2 8 6"/>
-                    <line x1="12" y1="2" x2="12" y2="15"/>
-                  </svg>
-                  Share Room Link
-                </Button>
+                  <div className="truncate pr-4 font-mono text-sm text-white/75">
+                    {joinUrl || `/${roomCode}`}
+                  </div>
+                  <div className="grid h-8 w-8 shrink-0 place-items-center rounded-lg bg-white/10 text-white transition group-hover:bg-white/20 group-hover:text-emerald-300">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                      <circle cx="18" cy="5" r="3" />
+                      <circle cx="6" cy="12" r="3" />
+                      <circle cx="18" cy="19" r="3" />
+                      <line x1="8.59" y1="13.51" x2="15.42" y2="17.49" />
+                      <line x1="15.41" y1="6.51" x2="8.59" y2="10.49" />
+                    </svg>
+                  </div>
+                </button>
               </div>
             </Card.Content>
           </Card>
