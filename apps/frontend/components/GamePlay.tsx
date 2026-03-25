@@ -32,9 +32,185 @@ interface AnswerResult {
 }
 
 const PREVIEW_START_RATIOS = [0.3, 0.45, 0.65, 0.75] as const;
+const LOCKED_NEXT_COPY = [
+  {
+    title: 'Ready for the next song?',
+    body: 'Keep it up. We are locking everyone in before the next preview drops.',
+  },
+  {
+    title: 'Next round is almost live.',
+    body: 'Stay focused. The next preview can start any second now.',
+  },
+  {
+    title: 'Another song is loading in.',
+    body: 'Hold the pressure. We are syncing the room for the next reveal.',
+  },
+  {
+    title: 'The next track is on deck.',
+    body: 'Eyes up. The room is almost ready for another fast guess.',
+  },
+  {
+    title: 'Keep your ears ready.',
+    body: 'The next preview is lining up while everyone gets locked in.',
+  },
+  {
+    title: 'One more breath, then go again.',
+    body: 'The countdown is close. Be ready when the next song hits.',
+  },
+  {
+    title: 'Stay sharp for the next drop.',
+    body: 'We are syncing the room so the next round starts clean for everyone.',
+  },
+  {
+    title: 'The room is heating up.',
+    body: 'Do not lose momentum. Another song is about to roll in.',
+  },
+  {
+    title: 'Hold your lead. Or steal it.',
+    body: 'The next preview is coming right after the room finishes syncing.',
+  },
+  {
+    title: 'Locked in for another one?',
+    body: 'Good. The next song is almost ready to test everyone again.',
+  },
+] as const;
+const CORRECT_NEXT_COPY = [
+  {
+    title: 'Ready for the next song? Keep it up.',
+    body: 'That answer landed clean. Catch your breath, then get ready again.',
+  },
+  {
+    title: 'Nice hit. Another one is coming.',
+    body: 'Momentum is on your side. Stay locked in for the next preview.',
+  },
+  {
+    title: 'You nailed that round.',
+    body: 'Keep the pressure on. The next song can widen the gap.',
+  },
+  {
+    title: 'Clean answer. Stay dangerous.',
+    body: 'Do not cool off now. Another preview is waiting right ahead.',
+  },
+  {
+    title: 'You are in rhythm now.',
+    body: 'Take that energy into the next round and keep climbing.',
+  },
+  {
+    title: 'Sharp ears. Strong round.',
+    body: 'The next song is your chance to stack even more points.',
+  },
+  {
+    title: 'That was smooth. Stay ready.',
+    body: 'Another preview is loading, and the pace is not slowing down.',
+  },
+  {
+    title: 'Big answer. Bigger pressure now.',
+    body: 'Everyone just saw that. See if you can do it again next round.',
+  },
+  {
+    title: 'Strong read. Keep the run alive.',
+    body: 'The room is syncing for the next drop. Stay hot.',
+  },
+  {
+    title: 'You got it. Do it again.',
+    body: 'Next round is close, and this is where streaks start to hurt people.',
+  },
+] as const;
+const WRONG_NEXT_COPY = [
+  {
+    title: 'Missed that one? The next song is your comeback.',
+    body: 'Stay locked in. The room is moving fast and the next preview is near.',
+  },
+  {
+    title: 'Shake it off. Another song is coming.',
+    body: 'You are still in this. Reset fast and attack the next round.',
+  },
+  {
+    title: 'That one slipped. The next one does not have to.',
+    body: 'Keep your focus high. The next preview is almost here.',
+  },
+  {
+    title: 'Not this round. Maybe the next.',
+    body: 'The room will not wait. Get ready to answer faster on the next drop.',
+  },
+  {
+    title: 'One miss changes nothing.',
+    body: 'You can still swing momentum back when the next song lands.',
+  },
+  {
+    title: 'Reset now. Next preview, new chance.',
+    body: 'The best comeback starts with one clean answer. Make it the next one.',
+  },
+  {
+    title: 'That round is gone. The next one is open.',
+    body: 'Stay calm and listen hard. Another preview is loading in.',
+  },
+  {
+    title: 'Take the hit. Answer the next one.',
+    body: 'The gap can close fast if you catch the next song early.',
+  },
+  {
+    title: 'The miss is over. The pressure stays on.',
+    body: 'Good players recover fast. The next track is almost ready.',
+  },
+  {
+    title: 'Do not chase the last round.',
+    body: 'Let it go and load up for the next song instead.',
+  },
+] as const;
+const RANKING_BAR_STYLES = {
+  first: {
+    shell: 'border-amber-300/50 bg-[radial-gradient(circle_at_top,_rgba(255,244,173,0.32),_transparent_56%),linear-gradient(180deg,rgba(255,241,168,0.16),rgba(255,241,168,0.04))]',
+    bar: 'border-amber-300/55 bg-gradient-to-t from-[#b77911] via-[#f6d365] to-[#fff3bf] text-[#241200] shadow-[0_18px_55px_rgba(245,158,11,0.35)]',
+    cap: 'bg-amber-100/80 text-[#4a2a00]',
+  },
+  second: {
+    shell: 'border-slate-200/20 bg-[radial-gradient(circle_at_top,_rgba(226,232,240,0.2),_transparent_56%),linear-gradient(180deg,rgba(255,255,255,0.08),rgba(255,255,255,0.03))]',
+    bar: 'border-slate-200/35 bg-gradient-to-t from-[#475569] via-[#94a3b8] to-[#e2e8f0] text-[#07111f] shadow-[0_14px_40px_rgba(148,163,184,0.18)]',
+    cap: 'bg-slate-100/80 text-[#1e293b]',
+  },
+  third: {
+    shell: 'border-orange-200/20 bg-[radial-gradient(circle_at_top,_rgba(251,191,36,0.18),_transparent_56%),linear-gradient(180deg,rgba(251,146,60,0.08),rgba(251,146,60,0.03))]',
+    bar: 'border-orange-200/35 bg-gradient-to-t from-[#9a3412] via-[#fb923c] to-[#fed7aa] text-[#2a1207] shadow-[0_14px_40px_rgba(249,115,22,0.18)]',
+    cap: 'bg-orange-100/80 text-[#7c2d12]',
+  },
+  default: {
+    shell: 'border-white/10 bg-[radial-gradient(circle_at_top,_rgba(148,163,184,0.12),_transparent_56%),linear-gradient(180deg,rgba(255,255,255,0.03),rgba(255,255,255,0.02))]',
+    bar: 'border-white/12 bg-gradient-to-t from-[#3c4f74] via-[#5b84d7] to-[#9fd8ff] text-[#07111f]',
+    cap: 'bg-slate-100/80 text-[#1e293b]',
+  },
+  current: {
+    shell: 'border-emerald-300/30 bg-[radial-gradient(circle_at_top,_rgba(110,231,183,0.2),_transparent_56%),linear-gradient(180deg,rgba(52,211,153,0.08),rgba(52,211,153,0.02))] shadow-[0_0_0_1px_rgba(110,231,183,0.12)]',
+    bar: 'border-emerald-300/45 bg-gradient-to-t from-emerald-400 via-emerald-300 to-[#d7ff8b] text-[#04130d] shadow-[0_12px_40px_rgba(74,222,128,0.22)]',
+    cap: 'bg-emerald-100/85 text-[#065f46]',
+  },
+} as const;
 
 function pickPreviewStartRatio() {
   return PREVIEW_START_RATIOS[Math.floor(Math.random() * PREVIEW_START_RATIOS.length)];
+}
+
+function pickCopyVariant<T>(variants: readonly T[], seed: number): T {
+  return variants[Math.abs(seed) % variants.length];
+}
+
+function FlameIcon({ className }: { className?: string }) {
+  return (
+    <svg
+      xmlns="http://www.w3.org/2000/svg"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.8"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      className={className}
+      aria-hidden="true"
+    >
+      <path d="M12 3c.5 2.2-.3 3.7-1.4 5.1-1.2 1.5-2.6 2.8-2.6 5.2a4 4 0 0 0 8 0c0-1.8-.8-3-1.8-4.2-.9-1-1.7-2-2.2-3.6Z" />
+      <path d="M10.5 14.5c0 1.7 1.2 3 2.7 3 1.3 0 2.3-.9 2.3-2.2 0-1.1-.6-1.9-1.3-2.6-.6-.7-1.2-1.3-1.4-2.4-.3 1.1-.9 1.7-1.4 2.3-.5.7-.9 1.4-.9 2.9Z" />
+    </svg>
+  );
 }
 
 export default function GamePlay({
@@ -92,6 +268,8 @@ export default function GamePlay({
   const currentRound = rounds[currentRoundIndex];
   const correctTrack = currentRound ? tracks.find((track) => track.id === currentRound.track_id) : null;
   const questionsRemaining = currentRound ? Math.max(rounds.length - currentRound.round_number, 0) : rounds.length;
+  const displayedStreakCount = answerResult?.streakCount ?? currentStreak;
+  const hasHotStreak = displayedStreakCount >= 3;
   const displayedScores = players.map((player) => ({
     id: player.id,
     score: player.id === currentPlayerId && currentRound && roundScores[currentRound.id] !== undefined
@@ -100,6 +278,35 @@ export default function GamePlay({
   }));
   const rankedScores = [...displayedScores].sort((a, b) => b.score - a.score);
   const recentRank = rankedScores.findIndex((entry) => entry.id === currentPlayerId) + 1;
+  const maxDisplayedScore = rankedScores.reduce((maxScore, entry) => Math.max(maxScore, entry.score), 0);
+  const rankedPlayers = rankedScores.map((entry, index) => {
+    const player = players.find((candidate) => candidate.id === entry.id);
+    const ratio = maxDisplayedScore > 0 ? entry.score / maxDisplayedScore : 0;
+    const rank = index + 1;
+    const isCurrentPlayer = entry.id === currentPlayerId;
+    const appearance = isCurrentPlayer
+      ? RANKING_BAR_STYLES.current
+      : rank === 1
+        ? RANKING_BAR_STYLES.first
+        : rank === 2
+          ? RANKING_BAR_STYLES.second
+          : rank === 3
+            ? RANKING_BAR_STYLES.third
+            : RANKING_BAR_STYLES.default;
+
+    return {
+      id: entry.id,
+      score: entry.score,
+      rank,
+      isCurrentPlayer,
+      displayName: player?.display_name || 'Player',
+      shortName: (player?.display_name || 'Player').slice(0, 10),
+      barHeight: `${Math.max(28, Math.round(28 + ratio * 120))}px`,
+      shellClassName: appearance.shell,
+      barClassName: appearance.bar,
+      capClassName: appearance.cap,
+    };
+  });
   const isClientLoaded = rounds.length > 0 && tracks.length > 0;
   const allPlayersSynced = players.length > 0 && players.every((player) => syncedPlayerIds.includes(player.id));
   const scheduledStartMs = scheduledStartAt ? new Date(scheduledStartAt).getTime() : null;
@@ -173,35 +380,36 @@ export default function GamePlay({
 
   const getIntermissionCopy = useCallback(() => {
     if (!answerResult) {
+      const variant = pickCopyVariant(LOCKED_NEXT_COPY, currentRoundIndex);
       return {
         eyebrow: 'Round locked',
-        title: questionsRemaining > 0 ? 'Next song is loading...' : 'Final scoreboard is loading...',
-        body: 'Stay ready, we are syncing everyone before moving on.',
+        title: questionsRemaining > 0 ? variant.title : 'The final scoreboard is almost here.',
+        body: questionsRemaining > 0
+          ? variant.body
+          : 'Hold tight. We are syncing the last results before the winner screen.',
       };
     }
 
     if (answerResult.correct) {
+      const variant = pickCopyVariant(CORRECT_NEXT_COPY, currentRoundIndex);
       return {
         eyebrow: answerResult.streakCount >= 2 ? `Hot streak x${answerResult.streakCount}` : 'Nice hit',
-        title: questionsRemaining > 0 ? 'Mantap, lanjut gas lagi.' : 'Strong finish.',
+        title: questionsRemaining > 0 ? variant.title : 'Strong finish. Stay sharp.',
         body: answerResult.streakBonus > 0
-          ? `Kamu dapet bonus streak +${answerResult.streakBonus}.`
-          : 'Jawaban kamu masuk dan score sudah di-update.',
+          ? `Your streak bonus is +${answerResult.streakBonus}. ${variant.body}`
+          : variant.body,
       };
     }
 
+    const variant = pickCopyVariant(WRONG_NEXT_COPY, currentRoundIndex);
     return {
       eyebrow: 'Round complete',
-      title: questionsRemaining > 0 ? 'Ambil napas, round berikutnya bentar lagi.' : 'Round terakhir selesai.',
-      body: `Jawaban yang benar: "${correctTrack?.title}" by ${correctTrack?.artists.join(', ')}`,
+      title: questionsRemaining > 0 ? variant.title : 'Final round complete.',
+      body: questionsRemaining > 0
+        ? `The correct answer was "${correctTrack?.title}" by ${correctTrack?.artists.join(', ')}. ${variant.body}`
+        : `The correct answer was "${correctTrack?.title}" by ${correctTrack?.artists.join(', ')}.`,
     };
-  }, [answerResult, correctTrack?.artists, correctTrack?.title, questionsRemaining]);
-
-  const getRankLabel = useCallback(() => {
-    if (recentRank <= 0) return '-';
-    const suffix = recentRank === 1 ? 'st' : recentRank === 2 ? 'nd' : recentRank === 3 ? 'rd' : 'th';
-    return `${recentRank}${suffix} / ${players.length}`;
-  }, [players.length, recentRank]);
+  }, [answerResult, correctTrack?.artists, correctTrack?.title, currentRoundIndex, questionsRemaining]);
 
   const advanceRound = useCallback(() => {
     if (currentRoundIndex >= rounds.length - 1) {
@@ -633,8 +841,18 @@ export default function GamePlay({
             Room {roomCode}
           </Chip>
           {currentStreak >= 2 && (
-            <Chip variant="soft" className="border border-amber-400/20 bg-amber-400/10 text-amber-300">
-              Streak x{currentStreak}
+            <Chip
+              variant="soft"
+              className={`border text-white/80 ${
+                currentStreak >= 3
+                  ? 'border-white/20 bg-white/10 shadow-[0_0_22px_rgba(255,255,255,0.12)]'
+                  : 'border-white/10 bg-white/5'
+              }`}
+            >
+              <span className="inline-flex items-center gap-2">
+                <FlameIcon className={`h-3.5 w-3.5 text-white/80 ${currentStreak >= 3 ? 'drop-shadow-[0_0_8px_rgba(255,255,255,0.55)]' : ''}`} />
+                <span>Streak x{currentStreak}</span>
+              </span>
             </Chip>
           )}
         </div>
@@ -827,23 +1045,87 @@ export default function GamePlay({
                 {getIntermissionCopy().body}
               </p>
 
-              <div className="mt-6 grid gap-3 sm:grid-cols-3">
+              <div className="mt-6 grid gap-3 sm:grid-cols-2">
                 <div className="rounded-2xl border border-white/10 bg-white/[0.04] px-4 py-4">
                   <div className="text-[0.65rem] uppercase tracking-[0.28em] text-white/35">Points</div>
                   <div className="mt-2 text-2xl font-semibold text-white">
                     {answerResult?.correct ? `+${answerResult.points}` : '+0'}
                   </div>
                 </div>
-                <div className="rounded-2xl border border-white/10 bg-white/[0.04] px-4 py-4">
+                <div className={`rounded-2xl border px-4 py-4 ${
+                  hasHotStreak
+                    ? 'border-white/20 bg-white/[0.07] shadow-[0_0_28px_rgba(255,255,255,0.09)]'
+                    : 'border-white/10 bg-white/[0.04]'
+                }`}>
                   <div className="text-[0.65rem] uppercase tracking-[0.28em] text-white/35">Streak</div>
-                  <div className="mt-2 text-2xl font-semibold text-white">
-                    x{answerResult?.streakCount ?? currentStreak}
+                  <div className="mt-2 flex items-center justify-center gap-2 text-2xl font-semibold text-white">
+                    <FlameIcon className={`h-5 w-5 text-white/75 ${hasHotStreak ? 'drop-shadow-[0_0_10px_rgba(255,255,255,0.65)]' : ''}`} />
+                    <span>x{displayedStreakCount}</span>
                   </div>
                 </div>
-                <div className="rounded-2xl border border-white/10 bg-white/[0.04] px-4 py-4">
-                  <div className="text-[0.65rem] uppercase tracking-[0.28em] text-white/35">Recent rank</div>
-                  <div className="mt-2 text-2xl font-semibold text-white">
-                    {getRankLabel()}
+              </div>
+
+              <div className="mt-4 rounded-[1.75rem] border border-white/10 bg-white/[0.04] px-4 py-5 sm:px-5">
+                <div className="flex items-center justify-between gap-4">
+                  <div>
+                    <div className="text-[0.65rem] uppercase tracking-[0.28em] text-white/35">Recent ranking</div>
+                    <div className="mt-1 text-lg font-semibold text-white">
+                      Kamu sekarang rank #{recentRank > 0 ? recentRank : '-'}
+                    </div>
+                  </div>
+                  <Chip
+                    variant="soft"
+                    className="border border-emerald-400/20 bg-emerald-400/10 text-emerald-300"
+                  >
+                    {players.length} players
+                  </Chip>
+                </div>
+
+                <div className="mt-5 rounded-[1.6rem] border border-white/8 bg-[#07090d] px-3 py-4 sm:px-4">
+                  <div className="mb-4 flex items-center justify-between text-[0.65rem] uppercase tracking-[0.28em] text-white/30">
+                    <span>Live podium</span>
+                    <span>Score momentum</span>
+                  </div>
+                  <div className="grid grid-cols-2 items-end gap-3 sm:grid-cols-4">
+                  {rankedPlayers.map((player) => (
+                    <motion.div
+                      key={player.id}
+                      layout
+                      transition={{ layout: { duration: 0.45, ease: 'easeOut' } }}
+                      className={`flex min-w-0 flex-col items-center rounded-[1.35rem] border px-2 pb-2 pt-3 sm:px-3 ${player.shellClassName}`}
+                    >
+                      <div className="mb-3 flex min-h-[2.6rem] items-end justify-center text-center">
+                        <div className="max-w-full truncate text-xs font-medium uppercase tracking-[0.22em] text-white/78 sm:text-sm">
+                          {player.isCurrentPlayer ? 'You' : player.shortName}
+                        </div>
+                      </div>
+                      <motion.div
+                        layout
+                        initial={{ height: 0, opacity: 0.5 }}
+                        animate={{ height: player.barHeight, opacity: 1 }}
+                        transition={{ duration: 0.45, ease: 'easeOut', delay: player.rank * 0.04, layout: { duration: 0.45, ease: 'easeOut' } }}
+                        className={`relative flex w-full max-w-[104px] flex-col justify-end overflow-hidden rounded-t-[1.5rem] border px-3 pb-3 pt-4 ${player.barClassName}`}
+                      >
+                        {player.rank === 1 && (
+                          <div className="absolute left-1/2 top-0 -translate-x-1/2 -translate-y-1/2 rounded-full bg-amber-200/90 p-1.5 text-amber-950 shadow-[0_8px_16px_rgba(245,158,11,0.45)]">
+                            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className="h-4 w-4">
+                              <path d="M5 18h14l-1.2-7.18-3.87 2.82L12 7 10.07 13.64 6.2 10.82 5 18zm0-11a1.5 1.5 0 1 0 0-3 1.5 1.5 0 0 0 0 3zm7-1.5a1.5 1.5 0 1 0 0-3 1.5 1.5 0 0 0 0 3zM19 7a1.5 1.5 0 1 0 0-3 1.5 1.5 0 0 0 0 3z" />
+                            </svg>
+                          </div>
+                        )}
+                        <div className={`absolute right-2 top-2 rounded-full px-2 py-1 text-[0.62rem] font-semibold uppercase tracking-[0.2em] ${player.capClassName}`}>
+                          #{player.rank}
+                        </div>
+                        <div className="pointer-events-none absolute inset-x-0 top-0 h-10 bg-gradient-to-b from-white/35 via-white/10 to-transparent" />
+                        <div className="mt-auto text-xl font-bold tracking-[-0.06em]">
+                          {player.score}
+                        </div>
+                        <div className="text-[0.65rem] uppercase tracking-[0.22em] text-current/70">
+                          pts
+                        </div>
+                      </motion.div>
+                    </motion.div>
+                  ))}
                   </div>
                 </div>
               </div>
