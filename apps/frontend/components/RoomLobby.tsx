@@ -684,11 +684,24 @@ export default function RoomLobby({ roomCode, onSelectionStarted, onPlayerIdSet 
                   </div>
                 )}
               </div>
-              <div className="space-y-2 text-center">
-                <div className="text-sm font-medium text-white">Tap or scan from mobile</div>
-                <div className="text-sm text-white/50">
-                  Or visit <span className="font-mono text-white/75">{joinUrl || `/${roomCode}`}</span>
+              <div className="space-y-4 text-center">
+                <div>
+                  <div className="text-sm font-medium text-white">Tap or scan from mobile</div>
+                  <div className="mt-1 text-sm text-white/50">
+                    Or visit <span className="font-mono text-white/75">{joinUrl || `/${roomCode}`}</span>
+                  </div>
                 </div>
+                <Button 
+                  className="w-full border border-white/15 bg-white/10 text-white font-medium transition hover:bg-white/20"
+                  onPress={handleShareLink}
+                >
+                  <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="mr-2">
+                    <path d="M4 12v8a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8"/>
+                    <polyline points="16 6 12 2 8 6"/>
+                    <line x1="12" y1="2" x2="12" y2="15"/>
+                  </svg>
+                  Share Room Link
+                </Button>
               </div>
             </Card.Content>
           </Card>
