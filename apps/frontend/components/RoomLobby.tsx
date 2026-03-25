@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState, useRef, useCallback } from 'react';
 import { useRoom } from '@/lib/useRoom';
-import { createGuestSession, getGuestSession, setRoomPlayerId } from '@/lib/supabase';
+import { createGuestSession, getGuestSession, setRoomPlayerId, supabase } from '@/lib/supabase';
 import { AnimatePresence, motion } from 'framer-motion';
 import { Button, Card, Chip, Separator } from '@heroui/react';
 
@@ -47,6 +47,7 @@ export default function RoomLobby({ roomCode, onSelectionStarted, onPlayerIdSet 
   const [editRoomName, setEditRoomName] = useState('');
   const [isSavingName, setIsSavingName] = useState(false);
   const nameInputRef = useRef<HTMLInputElement>(null);
+  const lobbyChannelRef = useRef<ReturnType<typeof supabase.channel> | null>(null);
 
   const readyCount = players.filter((p) => p.is_ready).length;
   const maxPlayerCount = (room?.settings?.max_players) ?? 4;
@@ -97,17 +98,40 @@ export default function RoomLobby({ roomCode, onSelectionStarted, onPlayerIdSet 
     }
   }, [room?.status, countdown, onSelectionStarted]);
 
+  // Listen for countdown broadcasts
+  useEffect(() => {
+    if (!room?.id) return;
+
+    const channel = supabase
+      .channel(`lobby-events:${room.id}`)
+      .on('broadcast', { event: 'start-selection-countdown' }, () => {
+        setCountdown(5);
+      })
+      .subscribe();
+
+    lobbyChannelRef.current = channel;
+
+    return () => {
+      supabase.removeChannel(channel);
+      lobbyChannelRef.current = null;
+    };
+  }, [room?.id]);
+
   // Countdown effect
   useEffect(() => {
     if (countdown === null) return;
 
     if (countdown === 0) {
-      startSelection().then((ok) => {
+      if (isHost) {
+        startSelection().then((ok) => {
+          setCountdown(null);
+          if (ok) {
+            onSelectionStarted();
+          }
+        });
+      } else {
         setCountdown(null);
-        if (ok) {
-          onSelectionStarted();
-        }
-      });
+      }
       return;
     }
 
@@ -116,7 +140,7 @@ export default function RoomLobby({ roomCode, onSelectionStarted, onPlayerIdSet 
     }, 1000);
 
     return () => window.clearTimeout(timeout);
-  }, [countdown, startSelection, onSelectionStarted]);
+  }, [countdown, isHost, startSelection, onSelectionStarted]);
 
   const handleJoinRoom = async () => {
     if (!displayName.trim()) return;
@@ -145,7 +169,12 @@ export default function RoomLobby({ roomCode, onSelectionStarted, onPlayerIdSet 
       alert('All players must be ready and at least 2 players needed');
       return;
     }
-    setCountdown(5);
+    
+    lobbyChannelRef.current?.send({
+      type: 'broadcast',
+      event: 'start-selection-countdown',
+      payload: {},
+    });
   };
 
   const handleCopyCode = async () => {
@@ -564,14 +593,31 @@ export default function RoomLobby({ roomCode, onSelectionStarted, onPlayerIdSet 
               <button
                 type="button"
                 onClick={handleToggleReady}
-                className="flex w-full items-center justify-between rounded-2xl border border-white/10 bg-black/25 px-4 py-4 text-left transition hover:bg-white/[0.05]"
+                className={`group relative flex w-full items-center justify-between overflow-hidden rounded-2xl border p-4 text-left transition-all duration-300 ${
+                  isReady 
+                    ? 'border-emerald-500/50 bg-emerald-500/10 shadow-[0_0_30px_-5px_var(--tw-shadow-color)] shadow-emerald-500/20' 
+                    : 'border-white/10 bg-black/25 hover:border-white/20 hover:bg-white/[0.05]'
+                }`}
               >
-                <div>
-                  <div className="text-sm text-white">I&#39;m ready to play</div>
-                  <div className="mt-1 text-sm text-white/50">Signal to the host that you are locked in.</div>
+                {isReady && (
+                  <div className="absolute inset-0 bg-gradient-to-r from-emerald-500/0 via-emerald-500/[0.07] to-emerald-500/0 opacity-0 transition-opacity duration-300 group-hover:opacity-100" />
+                )}
+                <div className="relative">
+                  <div className={`text-base font-semibold tracking-[-0.01em] transition-colors ${isReady ? 'text-emerald-400' : 'text-white'}`}>
+                    {isReady ? 'You are locked in!' : 'Ready to play?'}
+                  </div>
+                  <div className={`mt-1 text-sm transition-colors ${isReady ? 'text-emerald-400/70' : 'text-white/50'}`}>
+                    {isReady ? 'Waiting for others...' : 'Signal to the host that you are ready.'}
+                  </div>
                 </div>
-                <div className={`grid h-10 w-10 place-items-center rounded-full border text-sm transition ${isReady ? 'border-white bg-white text-black' : 'border-white/15 bg-transparent text-white/50'}`}>
-                  {isReady ? 'On' : 'Off'}
+                <div className="relative flex h-10 items-center justify-center gap-2">
+                  <div className={`grid h-10 w-24 place-items-center rounded-xl border text-sm font-bold tracking-wide transition-all duration-300 ${
+                    isReady 
+                      ? 'scale-105 border-emerald-400 bg-emerald-400 text-black shadow-[0_0_20px_rgba(52,211,153,0.4)]' 
+                      : 'border-white/15 bg-transparent text-white/50 group-hover:border-white/30 group-hover:text-white/80'
+                  }`}>
+                    {isReady ? 'READY' : 'LOCK IN'}
+                  </div>
                 </div>
               </button>
 
