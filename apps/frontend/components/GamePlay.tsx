@@ -127,13 +127,18 @@ export default function GamePlay({
       [otherGameTracks[i], otherGameTracks[j]] = [otherGameTracks[j], otherGameTracks[i]];
     }
 
-    const gameDistractors = otherGameTracks.slice(0, 1);
-    const neededExternal = 3 - gameDistractors.length;
     const shuffledExternal = [...distractorTracks];
     for (let i = shuffledExternal.length - 1; i > 0; i--) {
       const j = Math.floor(Math.random() * (i + 1));
       [shuffledExternal[i], shuffledExternal[j]] = [shuffledExternal[j], shuffledExternal[i]];
     }
+
+    const availableGameDistractorCounts = [1, 2, 3].filter((count) => count <= otherGameTracks.length);
+    const desiredGameDistractorCount = availableGameDistractorCounts.length > 0
+      ? availableGameDistractorCounts[Math.floor(Math.random() * availableGameDistractorCounts.length)]
+      : 0;
+    const gameDistractors = otherGameTracks.slice(0, desiredGameDistractorCount);
+    const neededExternal = Math.max(0, 3 - gameDistractors.length);
 
     const externalPicks = shuffledExternal.slice(0, neededExternal).map((track) => ({
       ...track,
@@ -150,7 +155,8 @@ export default function GamePlay({
 
     let allDistractors = [...gameDistractors, ...externalPicks];
     if (allDistractors.length < 3) {
-      const moreGameTracks = otherGameTracks.slice(1, 1 + (3 - allDistractors.length));
+      const remainingGameTracks = otherGameTracks.filter((track) => !gameDistractors.some((picked) => picked.id === track.id));
+      const moreGameTracks = remainingGameTracks.slice(0, 3 - allDistractors.length);
       allDistractors = [...allDistractors, ...moreGameTracks];
     }
 
