@@ -91,7 +91,9 @@ export default function LandingPage() {
         <div className="text-xl font-bold tracking-[0.32em] text-white">muze.games</div>
       </header>
 
-      <section className="grid flex-1 gap-8 py-10 lg:grid-cols-[1.05fr_0.95fr] lg:items-center">
+      <section className="relative overflow-hidden rounded-[2.2rem] border border-white/8 px-3 py-8 sm:px-5 lg:px-6">
+        <div aria-hidden="true" className="absolute inset-0 bg-black/20 backdrop-blur-[7px]" />
+        <div className="relative grid flex-1 gap-8 lg:grid-cols-[1.05fr_0.95fr] lg:items-center">
         <div className="space-y-8">
           <div className="space-y-5">
             <Chip variant="soft" className="border border-emerald-400/20 bg-emerald-400/10 text-emerald-300">
@@ -199,9 +201,12 @@ export default function LandingPage() {
             </div>
           </Card.Content>
         </Card>
+        </div>
       </section>
 
-      <section className="grid gap-4 border-t border-white/10 py-8 md:grid-cols-4">
+      <section className="relative mt-6 overflow-hidden rounded-[2rem] border border-white/8 px-3 py-8 sm:px-4">
+        <div aria-hidden="true" className="absolute inset-0 bg-black/18 backdrop-blur-[5px]" />
+        <div className="relative grid gap-4 border-t border-white/10 pt-8 md:grid-cols-4">
         {steps.map((item) => (
           <Card key={item.title} className="border border-white/12 bg-black/45 shadow-[0_16px_40px_rgba(0,0,0,0.18)] backdrop-blur-md transition-transform duration-200 hover:-translate-y-0.5 hover:bg-black/55">
             <Card.Content className="p-5">
@@ -210,6 +215,7 @@ export default function LandingPage() {
             </Card.Content>
           </Card>
         ))}
+        </div>
       </section>
 
       {isJoinModalOpen && (
@@ -231,7 +237,7 @@ export default function LandingPage() {
                 className="inline-flex h-10 w-10 items-center justify-center rounded-full border border-white/10 bg-white/5 text-lg text-white/70 transition hover:bg-white/10 hover:text-white"
                 aria-label="Close join room dialog"
               >
-                ×
+                X
               </button>
             </div>
 
@@ -274,4 +280,5 @@ export default function LandingPage() {
     </main>
   );
 }
+
 
