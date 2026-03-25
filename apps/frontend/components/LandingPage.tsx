@@ -98,12 +98,12 @@ export default function LandingPage() {
               No login required
             </Chip>
             <div className="space-y-4">
-              <h1 className="max-w-4xl text-4xl font-semibold tracking-[-0.07em] text-white sm:text-5xl lg:text-7xl">
+              <h1 className="max-w-4xl text-4xl font-semibold tracking-[-0.07em] text-white drop-shadow-[0_10px_35px_rgba(0,0,0,0.55)] sm:text-5xl lg:text-7xl">
                 Guess songs together.
                 <br />
                 Keep the round moving.
               </h1>
-              <p className="max-w-2xl text-sm leading-7 text-white/62 sm:text-base lg:text-lg">
+              <p className="max-w-2xl text-sm leading-7 text-white/78 sm:text-base lg:text-lg">
                 Pick your own songs, challenge your friends, and see who really
                 knows their music. Just enter a name and start playing.
               </p>
@@ -112,23 +112,23 @@ export default function LandingPage() {
 
           <div className="grid gap-3 sm:grid-cols-3">
             {stats.map((item) => (
-              <Card key={item.label} className="border border-white/10 bg-white/[0.03] shadow-none">
+              <Card key={item.label} className="border border-white/14 bg-black/55 shadow-[0_20px_60px_rgba(0,0,0,0.3)] backdrop-blur-xl">
                 <Card.Content className="p-5">
                   <div className="font-mono text-2xl text-white">{item.value}</div>
-                  <div className="mt-1 text-sm text-white/48">{item.label}</div>
+                  <div className="mt-1 text-sm text-white/65">{item.label}</div>
                 </Card.Content>
               </Card>
             ))}
           </div>
 
           {/* Create room form */}
-          <div className="space-y-3">
+          <div className="space-y-3 rounded-[1.75rem] border border-white/12 bg-black/45 p-4 shadow-[0_20px_80px_rgba(0,0,0,0.28)] backdrop-blur-xl sm:p-5">
             <input
               value={displayName}
               onChange={(e) => setDisplayName(e.target.value.slice(0, 20))}
               maxLength={20}
               placeholder="Your display name"
-              className="h-12 w-full max-w-sm rounded-2xl border border-white/12 bg-black/30 px-4 text-sm text-white outline-none transition placeholder:text-white/30 focus:border-white/30"
+              className="h-12 w-full max-w-sm rounded-2xl border border-white/18 bg-black/60 px-4 text-sm text-white outline-none transition placeholder:text-white/38 focus:border-white/34"
             />
             <div className="flex flex-wrap items-center gap-3">
               <button
@@ -145,7 +145,7 @@ export default function LandingPage() {
               <button
                 type="button"
                 onClick={() => setIsJoinModalOpen(true)}
-                className="inline-flex h-12 items-center justify-center rounded-full border border-white/15 px-5 text-sm font-medium text-white transition hover:bg-white/5"
+                className="inline-flex h-12 items-center justify-center rounded-full border border-white/18 bg-black/45 px-5 text-sm font-medium text-white transition hover:bg-white/10"
               >
                 Join room
               </button>
@@ -153,47 +153,47 @@ export default function LandingPage() {
           </div>
         </div>
 
-        <Card className="border border-white/10 bg-white/[0.04] shadow-[0_20px_80px_rgba(0,0,0,0.38)]">
+        <Card className="border border-white/14 bg-black/55 shadow-[0_26px_100px_rgba(0,0,0,0.4)] backdrop-blur-xl">
           <Card.Header className="flex flex-col items-start gap-3 px-6 pt-6">
             <Chip variant="secondary" className="bg-white/10 text-white/72">
               How it works
             </Chip>
             <div>
               <h2 className="text-2xl font-semibold tracking-[-0.05em] text-white">A room that stays readable</h2>
-              <p className="mt-1 text-sm text-white/55">
+              <p className="mt-1 text-sm text-white/68">
                 Create a room, pick songs, and challenge your friends.
               </p>
             </div>
           </Card.Header>
 
           <Card.Content className="space-y-5 px-6 pb-6">
-            <div className="space-y-3 rounded-2xl border border-white/10 bg-black/25 p-4">
-              <div className="flex items-center justify-between text-sm text-white/55">
+            <div className="space-y-3 rounded-2xl border border-white/12 bg-black/45 p-4">
+              <div className="flex items-center justify-between text-sm text-white/68">
                 <span>Room code</span>
                 <span className="font-mono tracking-[0.3em] text-emerald-300/90">ABCDEF</span>
               </div>
               <Separator className="bg-white/10" />
-              <div className="flex items-center justify-between text-sm text-white/55">
+              <div className="flex items-center justify-between text-sm text-white/68">
                 <span>Status</span>
                 <span className="text-emerald-300/90">Waiting</span>
               </div>
-              <div className="flex items-center justify-between text-sm text-white/55">
+              <div className="flex items-center justify-between text-sm text-white/68">
                 <span>Mode</span>
                 <span className="text-white">Player song picks</span>
               </div>
             </div>
 
             <div className="grid gap-3 sm:grid-cols-2">
-              <Card className="border border-white/10 bg-white/[0.03] shadow-none">
+              <Card className="border border-white/12 bg-black/40 shadow-none backdrop-blur-md">
                 <Card.Content className="p-4">
-                  <div className="text-xs uppercase tracking-[0.3em] text-white/40">Song selection</div>
-                  <div className="mt-1 text-sm text-white/70">Every player picks songs. Auto-fill from Top 100 if time runs out.</div>
+                  <div className="text-xs uppercase tracking-[0.3em] text-white/52">Song selection</div>
+                  <div className="mt-1 text-sm text-white/78">Every player picks songs. Auto-fill from Top 100 if time runs out.</div>
                 </Card.Content>
               </Card>
-              <Card className="border border-white/10 bg-white/[0.03] shadow-none">
+              <Card className="border border-white/12 bg-black/40 shadow-none backdrop-blur-md">
                 <Card.Content className="p-4">
-                  <div className="text-xs uppercase tracking-[0.3em] text-white/40">Fair play</div>
-                  <div className="mt-1 text-sm text-white/70">Everyone knows their own picks. Advantage is symmetric across players.</div>
+                  <div className="text-xs uppercase tracking-[0.3em] text-white/52">Fair play</div>
+                  <div className="mt-1 text-sm text-white/78">Everyone knows their own picks. Advantage is symmetric across players.</div>
                 </Card.Content>
               </Card>
             </div>
@@ -203,10 +203,10 @@ export default function LandingPage() {
 
       <section className="grid gap-4 border-t border-white/10 py-8 md:grid-cols-4">
         {steps.map((item) => (
-          <Card key={item.title} className="border border-white/10 bg-white/[0.03] shadow-none transition-transform duration-200 hover:-translate-y-0.5 hover:bg-white/[0.05]">
+          <Card key={item.title} className="border border-white/12 bg-black/45 shadow-[0_16px_40px_rgba(0,0,0,0.18)] backdrop-blur-md transition-transform duration-200 hover:-translate-y-0.5 hover:bg-black/55">
             <Card.Content className="p-5">
               <div className="font-semibold text-white">{item.title}</div>
-              <p className="mt-2 text-sm leading-6 text-white/55">{item.text}</p>
+              <p className="mt-2 text-sm leading-6 text-white/72">{item.text}</p>
             </Card.Content>
           </Card>
         ))}
@@ -214,14 +214,14 @@ export default function LandingPage() {
 
       {isJoinModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/72 px-4 backdrop-blur-sm">
-          <div className="w-full max-w-md rounded-[2rem] border border-white/10 bg-[#0d0d0f] p-6 shadow-[0_30px_120px_rgba(0,0,0,0.55)] sm:p-7">
+          <div className="w-full max-w-md rounded-[2rem] border border-white/14 bg-[#0d0d0f]/95 p-6 shadow-[0_30px_120px_rgba(0,0,0,0.55)] backdrop-blur-xl sm:p-7">
             <div className="flex items-start justify-between gap-4">
               <div>
                 <div className="text-xs uppercase tracking-[0.38em] text-white/35">Join room</div>
                 <h2 className="mt-2 text-2xl font-semibold tracking-[-0.05em] text-white">
                   Enter your room code
                 </h2>
-                <p className="mt-2 text-sm leading-6 text-white/55">
+                <p className="mt-2 text-sm leading-6 text-white/68">
                   Paste the 6-character code and jump straight into the lobby.
                 </p>
               </div>
@@ -248,7 +248,7 @@ export default function LandingPage() {
                 placeholder="ROOM01"
                 aria-label="Room code"
                 autoFocus
-                className="h-14 w-full rounded-[1.3rem] border border-white/12 bg-black/30 px-5 font-mono text-base tracking-[0.34em] text-white outline-none transition placeholder:text-white/25 focus:border-white/30"
+                className="h-14 w-full rounded-[1.3rem] border border-white/18 bg-black/60 px-5 font-mono text-base tracking-[0.34em] text-white outline-none transition placeholder:text-white/28 focus:border-white/34"
               />
               <div className="flex gap-3">
                 <button
