@@ -9,12 +9,24 @@ interface AudioPlayerProps {
   autoPlay?: boolean;
   onEnded?: () => void;
   maxDuration?: number; // in seconds, default 30
+  durationMs?: number;
+  startRatio?: number;
 }
 
-export default function AudioPlayer({ src, youtubeId, autoPlay = true, onEnded, maxDuration = 30 }: AudioPlayerProps) {
+export default function AudioPlayer({
+  src,
+  youtubeId,
+  autoPlay = true,
+  onEnded,
+  maxDuration = 30,
+  durationMs,
+  startRatio = 0.4,
+}: AudioPlayerProps) {
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const ytPlayerRef = useRef<YouTubePlayer | null>(null);
   const animRef = useRef<number>(0);
+  const previewStartRef = useRef(0);
+  const hasSeekedRef = useRef(false);
   
   const [isPlaying, setIsPlaying] = useState(false);
   const [progress, setProgress] = useState(0);
@@ -24,6 +36,15 @@ export default function AudioPlayer({ src, youtubeId, autoPlay = true, onEnded, 
   // Force YouTube playback to avoid Spotify Premium errors. Can be disabled later for hybrid mode.
   const forceYoutube = true;
   const isYoutubeMode = forceYoutube ? !!youtubeId : (!src && !!youtubeId);
+
+  const getPreviewStartSeconds = useCallback((fallbackDuration = 0) => {
+    const totalDuration = durationMs ? Math.floor(durationMs / 1000) : Math.floor(fallbackDuration);
+    if (!isYoutubeMode || totalDuration <= 0) return 0;
+
+    const rawStart = Math.floor(totalDuration * startRatio);
+    const latestSafeStart = Math.max(0, totalDuration - maxDuration);
+    return Math.min(rawStart, latestSafeStart);
+  }, [durationMs, isYoutubeMode, maxDuration, startRatio]);
 
   // Cleanup on unmount
   useEffect(() => {
@@ -55,10 +76,11 @@ export default function AudioPlayer({ src, youtubeId, autoPlay = true, onEnded, 
       playing = !audioRef.current.paused;
     }
 
-    setCurrentTime(time);
-    setProgress(Math.min((time / maxDuration) * 100, 100));
+    const elapsedTime = Math.max(0, time - previewStartRef.current);
+    setCurrentTime(elapsedTime);
+    setProgress(Math.min((elapsedTime / maxDuration) * 100, 100));
 
-    if (time >= maxDuration) {
+    if (elapsedTime >= maxDuration) {
       setIsPlaying(false);
       if (isYoutubeMode && ytPlayerRef.current) {
          try { ytPlayerRef.current.pauseVideo(); } catch { /* ignore */ }
@@ -142,9 +164,27 @@ export default function AudioPlayer({ src, youtubeId, autoPlay = true, onEnded, 
   const onYoutubeReady = (event: YouTubeEvent) => {
     ytPlayerRef.current = event.target;
     setIsYoutubeReady(true);
-    if (autoPlay) {
-      event.target.playVideo();
-    }
+    hasSeekedRef.current = false;
+
+    const syncPreviewStart = () => {
+      const player = event.target;
+      const previewStart = getPreviewStartSeconds(player.getDuration?.() || 0);
+      previewStartRef.current = previewStart;
+
+      if (!hasSeekedRef.current) {
+        hasSeekedRef.current = true;
+        if (previewStart > 0) {
+          player.seekTo(previewStart, true);
+        }
+      }
+
+      if (autoPlay) {
+        player.playVideo();
+      }
+    };
+
+    syncPreviewStart();
+    window.setTimeout(syncPreviewStart, 350);
   };
 
   const onYoutubeStateChange = (event: YouTubeEvent) => {
@@ -169,11 +209,11 @@ export default function AudioPlayer({ src, youtubeId, autoPlay = true, onEnded, 
               width: '10',
               playerVars: {
                 autoplay: autoPlay ? 1 : 0,
-                controls: 0,
-                disablekb: 1,
-                fs: 0,
-                playsinline: 1,
-                start: 0,
+              controls: 0,
+              disablekb: 1,
+              fs: 0,
+              playsinline: 1,
+                start: getPreviewStartSeconds(),
               },
             }}
             onReady={onYoutubeReady}

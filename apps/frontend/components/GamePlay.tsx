@@ -2,7 +2,7 @@
 
 import { useEffect, useState, useCallback, useRef } from 'react';
 import { Track, Room, Player } from '@songguessr/shared';
-import { supabase } from '@/lib/supabase';
+import { clearRoomPlayerId, supabase } from '@/lib/supabase';
 import AudioPlayer from '@/components/AudioPlayer';
 import { AnimatePresence, motion } from 'framer-motion';
 import { Card, Chip } from '@heroui/react';
@@ -312,6 +312,7 @@ export default function GamePlay({ room, players, currentPlayerId, roomCode, tra
   const handleLeaveRoom = async () => {
     setIsConfirmingLeave(false);
     if (!currentPlayerId) {
+      clearRoomPlayerId(roomCode);
       window.location.href = '/';
       return;
     }
@@ -325,6 +326,7 @@ export default function GamePlay({ room, players, currentPlayerId, roomCode, tra
     } catch (e) {
       console.error('Failed to leave room', e);
     }
+    clearRoomPlayerId(roomCode);
     window.location.href = '/';
   };
 
@@ -345,6 +347,17 @@ export default function GamePlay({ room, players, currentPlayerId, roomCode, tra
                 {scheduledStartAt
                   ? 'The match is locked and about to begin. Stay on this screen while everyone is synchronized.'
                   : 'We are preparing the first round and making sure every player has loaded the match before it starts.'}
+              </p>
+            </div>
+
+            <div className="rounded-[2rem] border border-amber-400/20 bg-amber-400/10 p-6 text-center shadow-[0_0_40px_rgba(251,191,36,0.08)]">
+              <div className="text-[0.7rem] uppercase tracking-[0.4em] text-amber-200/75">Sound check</div>
+              <h2 className="mt-3 text-3xl font-semibold tracking-[-0.05em] text-white sm:text-4xl">
+                Turn your volume up now
+              </h2>
+              <p className="mt-3 text-sm leading-6 text-amber-100/80 sm:text-base">
+                Music will autoplay as soon as the match starts, and the preview jumps straight into the song.
+                Biar nggak kelewatan, gedein volume atau pakai headset dulu sebelum countdown habis.
               </p>
             </div>
 
@@ -393,10 +406,13 @@ export default function GamePlay({ room, players, currentPlayerId, roomCode, tra
             <div className="rounded-3xl border border-white/10 bg-black/25 p-6 text-center">
               {scheduledStartAt ? (
                 <>
-                  <div className="text-[0.65rem] uppercase tracking-[0.45em] text-white/45">Starts in</div>
+              <div className="text-[0.65rem] uppercase tracking-[0.45em] text-white/45">Starts in</div>
                   <div className="mt-3 font-mono text-6xl font-bold tracking-[-0.08em] text-white">
                     {syncCountdown ?? 0}
                   </div>
+                  <p className="mt-3 text-sm text-white/55">
+                    Audio starts automatically. Keep your sound on.
+                  </p>
                 </>
               ) : (
                 <>
@@ -479,6 +495,8 @@ export default function GamePlay({ room, players, currentPlayerId, roomCode, tra
             youtubeId={correctTrack.youtube_id}
             autoPlay
             maxDuration={room.settings.time_per_round}
+            durationMs={correctTrack.duration_ms}
+            startRatio={0.4}
           />
         </Card.Content>
       </Card>

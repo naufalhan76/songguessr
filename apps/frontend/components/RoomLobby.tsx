@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState, useRef, useCallback } from 'react';
 import { useRoom } from '@/lib/useRoom';
-import { createGuestSession, getGuestSession, setRoomPlayerId, supabase } from '@/lib/supabase';
+import { clearRoomPlayerId, createGuestSession, getGuestSession, setRoomPlayerId, supabase } from '@/lib/supabase';
 import { AnimatePresence, motion } from 'framer-motion';
 import { Button, Card, Chip, Separator } from '@heroui/react';
 
@@ -214,6 +214,7 @@ export default function RoomLobby({ roomCode, onSelectionStarted, onPlayerIdSet 
 
   const handleLeaveRoom = async () => {
     if (!currentPlayerId) {
+      clearRoomPlayerId(roomCode);
       window.location.href = '/';
       return;
     }
@@ -228,7 +229,8 @@ export default function RoomLobby({ roomCode, onSelectionStarted, onPlayerIdSet 
     } catch (e) {
       console.error('Failed to leave room', e);
     }
-    
+
+    clearRoomPlayerId(roomCode);
     window.location.href = '/';
   };
 
@@ -412,13 +414,57 @@ export default function RoomLobby({ roomCode, onSelectionStarted, onPlayerIdSet 
           </div>
         </div>
 
-        <div className="flex flex-wrap gap-3">
-          <Button variant="outline" className="border-white/15 text-white" onPress={handleShareLink}>
-            Share link
-          </Button>
-          <Button variant="primary" className="bg-white text-black" onPress={handleLeaveRoom} isDisabled={isLeaving}>
-            {isLeaving ? 'Leaving...' : 'Leave room'}
-          </Button>
+        <div className="flex w-full flex-col gap-3 sm:w-auto sm:flex-row">
+          <button
+            type="button"
+            onClick={handleShareLink}
+            className="group flex min-h-14 items-center justify-between rounded-2xl border border-emerald-400/20 bg-emerald-400/10 px-5 py-3 text-left transition-all hover:border-emerald-300/40 hover:bg-emerald-400/15 hover:shadow-[0_0_30px_rgba(52,211,153,0.12)]"
+            title="Share room link"
+          >
+            <div className="flex items-center gap-3">
+              <div className="grid h-11 w-11 shrink-0 place-items-center rounded-xl bg-emerald-400/15 text-emerald-300 transition group-hover:scale-105 group-hover:bg-emerald-400/20">
+                <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <circle cx="18" cy="5" r="3" />
+                  <circle cx="6" cy="12" r="3" />
+                  <circle cx="18" cy="19" r="3" />
+                  <line x1="8.59" y1="13.51" x2="15.42" y2="17.49" />
+                  <line x1="15.41" y1="6.51" x2="8.59" y2="10.49" />
+                </svg>
+              </div>
+              <div>
+                <div className="text-sm font-semibold text-white">Share room link</div>
+                <div className="text-xs text-emerald-200/70">Invite friends fast</div>
+              </div>
+            </div>
+            <div className="pl-4 text-xs font-medium uppercase tracking-[0.25em] text-emerald-300/75">
+              Share
+            </div>
+          </button>
+
+          <button
+            type="button"
+            onClick={handleLeaveRoom}
+            disabled={isLeaving}
+            className="group flex min-h-14 items-center justify-between rounded-2xl border border-red-400/20 bg-red-500/10 px-5 py-3 text-left transition-all hover:border-red-300/40 hover:bg-red-500/15 hover:shadow-[0_0_30px_rgba(248,113,113,0.12)] disabled:cursor-not-allowed disabled:opacity-60"
+            title="Leave room"
+          >
+            <div className="flex items-center gap-3">
+              <div className="grid h-11 w-11 shrink-0 place-items-center rounded-xl bg-red-400/15 text-red-300 transition group-hover:scale-105 group-hover:bg-red-400/20">
+                <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" />
+                  <polyline points="16 17 21 12 16 7" />
+                  <line x1="21" y1="12" x2="9" y2="12" />
+                </svg>
+              </div>
+              <div>
+                <div className="text-sm font-semibold text-white">{isLeaving ? 'Leaving room...' : 'Leave room'}</div>
+                <div className="text-xs text-red-200/70">Exit this lobby</div>
+              </div>
+            </div>
+            <div className="pl-4 text-xs font-medium uppercase tracking-[0.25em] text-red-300/75">
+              Exit
+            </div>
+          </button>
         </div>
       </header>
 

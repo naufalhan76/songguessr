@@ -21,6 +21,19 @@ export async function GET(_request: NextRequest, context: RouteContext) {
       return NextResponse.json({ success: false, error: 'Room not found' }, { status: 404 });
     }
 
+    if (
+      room.status === 'finished'
+      && room.ended_at
+      && new Date(room.ended_at).getTime() <= Date.now() - (2 * 60 * 1000)
+    ) {
+      await supabase
+        .from('rooms')
+        .delete()
+        .eq('id', room.id);
+
+      return NextResponse.json({ success: false, error: 'Room has expired' }, { status: 404 });
+    }
+
     // Fetch players for this room
     const { data: players } = await supabase
       .from('players')

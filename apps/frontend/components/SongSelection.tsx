@@ -2,7 +2,7 @@
 
 import { useEffect, useState, useCallback, useRef } from 'react';
 import { Track, Room, Player } from '@songguessr/shared';
-import { supabase } from '@/lib/supabase';
+import { clearRoomPlayerId, supabase } from '@/lib/supabase';
 import { AnimatePresence, motion } from 'framer-motion';
 import { Card, Chip, Button } from '@heroui/react';
 
@@ -48,6 +48,7 @@ export default function SongSelection({
   const [isSearching, setIsSearching] = useState(false);
   const [roomSongs, setRoomSongs] = useState<RoomSongEntry[]>([]);
   const [isAdding, setIsAdding] = useState<string | null>(null); // spotify_id being added
+  const [addingTrackTitle, setAddingTrackTitle] = useState<string>('');
   const [timeRemaining, setTimeRemaining] = useState(0); // in seconds
   const [isStartingGame, setIsStartingGame] = useState(false);
   const [isLeaving, setIsLeaving] = useState(false);
@@ -162,6 +163,7 @@ export default function SongSelection({
     if (isAdding || myQuotaFilled) return;
 
     setIsAdding(track.spotify_id);
+    setAddingTrackTitle(track.title);
     try {
       const res = await fetch(`/api/rooms/${roomCode}/songs`, {
         method: 'POST',
@@ -191,6 +193,7 @@ export default function SongSelection({
       console.error('Failed to add song', e);
     }
     setIsAdding(null);
+    setAddingTrackTitle('');
   };
 
   const handleRemoveSong = async (roomSongId: string) => {
@@ -234,6 +237,7 @@ export default function SongSelection({
 
   const handleLeaveRoom = async () => {
     if (!currentPlayerId) {
+      clearRoomPlayerId(roomCode);
       window.location.href = '/';
       return;
     }
@@ -247,6 +251,7 @@ export default function SongSelection({
     } catch (e) {
       console.error('Failed to leave room', e);
     }
+    clearRoomPlayerId(roomCode);
     window.location.href = '/';
   };
 
@@ -315,7 +320,7 @@ export default function SongSelection({
               onChange={(e) => setSearchQuery(e.target.value)}
               placeholder="Search for a song..."
               className="h-14 w-full rounded-2xl border border-white/15 bg-black/30 px-5 pr-12 text-base text-white outline-none transition placeholder:text-white/30 focus:border-white/30"
-              disabled={myQuotaFilled}
+              disabled={myQuotaFilled || !!isAdding}
             />
             {isSearching && (
               <div className="absolute right-4 top-1/2 -translate-y-1/2">
@@ -473,6 +478,7 @@ export default function SongSelection({
                     <button
                       type="button"
                       onClick={() => handleRemoveSong(rs.id)}
+                      disabled={!!isAdding}
                       className="grid h-8 w-8 shrink-0 place-items-center rounded-lg border border-white/10 bg-white/5 text-white/40 transition hover:bg-red-400/10 hover:text-red-400"
                       title="Remove"
                     >
@@ -544,6 +550,42 @@ export default function SongSelection({
 
       {/* Leave overlay */}
       <AnimatePresence>
+        {isAdding && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-[115] flex items-center justify-center bg-black/65 px-4 backdrop-blur-md"
+          >
+            <motion.div
+              initial={{ scale: 0.96, y: 10 }}
+              animate={{ scale: 1, y: 0 }}
+              exit={{ scale: 0.98, y: -6 }}
+              className="w-full max-w-md rounded-[2rem] border border-white/10 bg-[#090b12]/95 p-8 text-center shadow-[0_30px_120px_rgba(0,0,0,0.55)]"
+            >
+              <div className="mx-auto mb-5 grid h-16 w-16 place-items-center rounded-full border border-violet-400/20 bg-violet-400/10">
+                <div className="h-8 w-8 animate-spin rounded-full border-4 border-violet-300/20 border-t-violet-300" />
+              </div>
+              <div className="text-[0.65rem] uppercase tracking-[0.45em] text-white/40">Adding song</div>
+              <h3 className="mt-3 text-2xl font-semibold tracking-[-0.04em] text-white">
+                Saving to pick list...
+              </h3>
+              <p className="mt-3 text-sm leading-6 text-white/55">
+                {addingTrackTitle
+                  ? `"${addingTrackTitle}" lagi dimasukin ke daftar lagu room. Tunggu sebentar ya.`
+                  : 'Lagu kamu lagi ditambahin ke daftar room. Tunggu sebentar ya.'}
+              </p>
+              <div className="mt-6 h-2 overflow-hidden rounded-full bg-white/8">
+                <motion.div
+                  className="h-full rounded-full bg-violet-400"
+                  initial={{ x: '-100%' }}
+                  animate={{ x: '100%' }}
+                  transition={{ repeat: Infinity, duration: 1.1, ease: 'easeInOut' }}
+                />
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
         {isLeaving && (
           <motion.div
             initial={{ opacity: 0 }}

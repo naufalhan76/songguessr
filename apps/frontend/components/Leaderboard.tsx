@@ -2,7 +2,7 @@
 
 import { useEffect, useState, useCallback } from 'react';
 import { Player, Room, Track } from '@songguessr/shared';
-import { supabase } from '@/lib/supabase';
+import { clearRoomPlayerId, supabase } from '@/lib/supabase';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Button, Card, Chip } from '@heroui/react';
 import confetti from 'canvas-confetti';
@@ -238,12 +238,18 @@ async function createLeaderboardImageBlob({
 }
 
 export default function Leaderboard({ room, players, currentUserId, roomCode, tracks }: LeaderboardProps) {
+  const autoLeaveAt = room.ended_at
+    ? new Date(room.ended_at).getTime() + (2 * 60 * 1000)
+    : Date.now() + (2 * 60 * 1000);
   const [leaderboard, setLeaderboard] = useState<PlayerWithAnswers[]>([]);
   const [loading, setLoading] = useState(true);
   const [mostPlayedArtist, setMostPlayedArtist] = useState<string>('');
   const [isLeaving, setIsLeaving] = useState(false);
   const [isSharingImage, setIsSharingImage] = useState(false);
   const [shareStatus, setShareStatus] = useState<string | null>(null);
+  const [secondsUntilAutoLeave, setSecondsUntilAutoLeave] = useState(
+    Math.max(0, Math.ceil((autoLeaveAt - Date.now()) / 1000))
+  );
 
   const fireConfetti = useCallback(() => {
     const duration = 3000;
@@ -394,7 +400,7 @@ export default function Leaderboard({ room, players, currentUserId, roomCode, tr
     }
   }, [leaderboard, mostPlayedArtist, room, roomCode]);
 
-  const handleLeaveRoom = async () => {
+  const handleLeaveRoom = useCallback(async (isAutoLeave = false) => {
     setIsLeaving(true);
     try {
       await fetch(`/api/rooms/${roomCode}/leave`, {
@@ -403,10 +409,42 @@ export default function Leaderboard({ room, players, currentUserId, roomCode, tr
         body: JSON.stringify({ player_id: currentUserId }),
       });
     } catch (error) {
-      console.error('Failed to leave room', error);
+      if (!isAutoLeave) {
+        console.error('Failed to leave room', error);
+      }
     }
+    clearRoomPlayerId(roomCode);
     window.location.href = '/';
-  };
+  }, [currentUserId, roomCode]);
+
+  useEffect(() => {
+    const syncCountdown = () => {
+      setSecondsUntilAutoLeave(Math.max(0, Math.ceil((autoLeaveAt - Date.now()) / 1000)));
+    };
+
+    syncCountdown();
+    const interval = window.setInterval(syncCountdown, 1000);
+
+    return () => {
+      window.clearInterval(interval);
+    };
+  }, [autoLeaveAt]);
+
+  useEffect(() => {
+    const remainingMs = autoLeaveAt - Date.now();
+    if (remainingMs <= 0) {
+      handleLeaveRoom(true);
+      return;
+    }
+
+    const timeout = window.setTimeout(() => {
+      handleLeaveRoom(true);
+    }, remainingMs);
+
+    return () => {
+      window.clearTimeout(timeout);
+    };
+  }, [autoLeaveAt, handleLeaveRoom]);
 
   if (loading) {
     return (
@@ -436,6 +474,9 @@ export default function Leaderboard({ room, players, currentUserId, roomCode, tr
           {room.room_name?.trim() ? `${room.room_name.trim()} - ` : `Room ${roomCode} - `}
           {leaderboard[0]?.total_rounds ?? 0} rounds completed
         </p>
+        <div className="rounded-full border border-amber-400/20 bg-amber-400/10 px-4 py-2 text-sm text-amber-300">
+          Room data will be cleared in {secondsUntilAutoLeave}s
+        </div>
       </header>
 
       {winner && (
@@ -549,7 +590,7 @@ export default function Leaderboard({ room, players, currentUserId, roomCode, tr
             variant="primary"
             size="lg"
             className="bg-white text-black"
-            onPress={handleLeaveRoom}
+            onPress={() => handleLeaveRoom()}
             isDisabled={isLeaving}
           >
             {isLeaving ? 'Leaving...' : 'Leave Room / Play again'}

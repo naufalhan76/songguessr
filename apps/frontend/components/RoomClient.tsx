@@ -2,7 +2,7 @@
 
 import { useState, useCallback, useEffect } from 'react';
 import { Track, Room, Player } from '@songguessr/shared';
-import { supabase, getRoomPlayerId } from '@/lib/supabase';
+import { clearRoomPlayerId, supabase, getRoomPlayerId } from '@/lib/supabase';
 import RoomLobby from '@/components/RoomLobby';
 import SongSelection from '@/components/SongSelection';
 import GamePlay from '@/components/GamePlay';
@@ -79,6 +79,7 @@ export default function RoomClient({ roomCode }: RoomClientProps) {
         { event: '*', schema: 'public', table: 'rooms', filter: `id=eq.${room.id}` },
         (payload) => {
           if (payload.eventType === 'DELETE') {
+            clearRoomPlayerId(roomCode);
             window.location.href = '/?error=' + encodeURIComponent('Room was closed by the host.');
             return;
           }
@@ -104,7 +105,7 @@ export default function RoomClient({ roomCode }: RoomClientProps) {
     return () => {
       supabase.removeChannel(channel);
     };
-  }, [room?.id, phase, fetchRoomData]);
+  }, [room?.id, phase, fetchRoomData, roomCode]);
 
   const handleSelectionStarted = useCallback(() => {
     fetchRoomData();
