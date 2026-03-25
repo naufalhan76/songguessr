@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createServiceClient } from '@/lib/supabase-server';
-import { getTop100Global } from '@/lib/spotify';
+// Spotify auto-fill (kept for hybrid mode later):
+// import { getTop100Global } from '@/lib/spotify';
+import { getTop100Indonesia } from '@/lib/youtube';
 
 interface RouteContext {
   params: Promise<{ code: string }>;
@@ -58,16 +60,16 @@ export async function POST(request: NextRequest, context: RouteContext) {
 
     let existingTracks = (roomSongs ?? [])
       .map((rs) => rs.tracks)
-      .filter((t): t is NonNullable<typeof t> => !!t && !!t.preview_url);
+      .filter((t): t is NonNullable<typeof t> => !!t && (!!t.preview_url || !!t.youtube_id));
 
     // Auto-fill from Top 100 Global if not enough songs
     const neededSongs = Math.max(roundCount, 4);
     if (existingTracks.length < neededSongs) {
       const shortage = neededSongs - existingTracks.length;
-      console.log(`Auto-filling ${shortage} songs from Top 100 Global`);
+      console.log(`Auto-filling ${shortage} songs from YouTube Top 100 Indonesia`);
 
       try {
-        const globalTracks = await getTop100Global();
+        const globalTracks = await getTop100Indonesia();
 
         // Filter out tracks already in the room
         const existingSpotifyIds = new Set(existingTracks.map((t) => t.spotify_id));

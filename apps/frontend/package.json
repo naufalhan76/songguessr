@@ -8,6 +8,7 @@
     "start": "next start"
   },
   "dependencies": {
+    "@distube/ytpl": "^1.2.4",
     "@heroui/react": "^3.0.1",
     "@songguessr/shared": "file:../../packages/shared",
     "@supabase/supabase-js": "^2.45.1",
