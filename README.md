@@ -1,148 +1,167 @@
-# Songguessr 🎵
+# Songguessr
 
-A real‑time multiplayer web game where players guess songs based on the "recently played" or "top tracks" of other players in the room.
+Songguessr is a real-time multiplayer music guessing game built with Next.js and Supabase.
+Players join a room, mark ready, manually pick songs for the match, then guess tracks from short YouTube-based previews.
 
-## Features
+## What Exists Today
 
-- **Real‑time multiplayer** (2‑4 players) with room‑based lobbies
-- **Spotify OAuth integration** to fetch users' top tracks & recently played
-- **Interactive quiz** with 30‑second audio previews and multiple‑choice questions
-- **Speed‑based scoring** – faster answers earn more points
-- **Dynamic leaderboards** with fun trivia about whose playlist was played most
-- **Mobile‑first responsive design** with smooth animations (Framer Motion)
-- **Supabase backend** for authentication, real‑time sync, and database
+- Guest-friendly room flow with shareable room links and QR join
+- Lobby with ready state, host-managed settings, and clearer leave/share actions
+- Song selection phase where each player adds songs into the room pool
+- Privacy masking so players cannot see other players' exact picks before the match
+- Duplicate song handling on match start, with automatic Top 100 fallback replacement
+- Match sync loading screen so the game waits for every client before starting
+- YouTube playback with autoplay fallback, Android audio priming, and randomized preview start positions
+- Multiple-choice rounds with realtime answer syncing
+- Speed scoring plus streak bonus scoring
+- Intermission screen between rounds with recent rank, streak, and remaining-question info
+- Auto-win when only one player remains in an active match
+- Leaderboard image export for WhatsApp / social sharing
+- Automatic room cleanup 2 minutes after a finished match, plus orphan track cache cleanup
 
 ## Tech Stack
 
-- **Frontend**: Next.js 15 (App Router), TypeScript, Tailwind CSS, Framer Motion
-- **Backend**: Supabase (PostgreSQL, Realtime, Auth, Edge Functions)
-- **External API**: Spotify Web API
-- **Deployment**: Vercel (frontend), Supabase (backend)
+- Frontend: Next.js 16, React 19, TypeScript, Tailwind CSS, Framer Motion, HeroUI
+- Backend: Supabase Postgres, Realtime, SQL migrations
+- Music sources: YouTube search / YouTube Top 100 playlist fallback
+- Shared package: `packages/shared`
 
 ## Project Structure
 
-```
-songguessr/
-├── apps/
-│   ├── frontend/          # Next.js application
-│   │   ├── app/           # App Router pages
-│   │   ├── components/    # React components
-│   │   └── lib/           # Utilities, Supabase client
-│   └── backend/           # Supabase migrations & Edge Functions
-│       └── supabase/migrations/
-├── packages/
-│   └── shared/            # Shared TypeScript types & utilities
-├── ARCHITECTURE.md        # Detailed architecture & data models
-└── README.md              # This file
+```text
+Songguessr/
+|- apps/
+|  |- frontend/                     # Next.js app
+|  |  |- app/                       # App Router routes and API handlers
+|  |  |- components/                # UI and gameplay components
+|  |  |- lib/                       # Supabase, YouTube, helpers
+|  |- backend/
+|     |- supabase/
+|        |- migrations/             # SQL migrations
+|- packages/
+|  |- shared/                       # Shared TS types
+|- ARCHITECTURE.md
+`- README.md
 ```
 
-## Getting Started
+## Game Flow
+
+1. Host creates a room and shares the link or code.
+2. Players join as guests and tap Ready.
+3. Host starts song selection.
+4. Each player adds songs to the room pool.
+5. If picks are incomplete, fallback songs can be auto-filled.
+6. When all clients finish loading, the match starts in sync.
+7. Every round plays a short preview and all active players answer.
+8. The round advances when everyone has answered or the timer expires.
+9. Final leaderboard appears, can be shared, and the room is cleaned up automatically.
+
+## Current Match Rules
+
+- Room songs are hidden from other players during the selection phase.
+- Duplicate songs are not exposed to users during selection.
+- On match start, duplicate title + artist combinations are replaced in the backend.
+- Preview start points are randomized per round from a small set of offsets.
+- Correct answers earn points based on speed or correctness mode.
+- Consecutive correct answers add streak bonuses.
+- If only one player remains during an active match, that player auto-wins.
+
+## Local Development
 
 ### Prerequisites
 
 - Node.js 18+
-- npm or yarn
-- A [Supabase](https://supabase.com) project
-- A [Spotify Developer](https://developer.spotify.com/dashboard) app
+- npm
+- A Supabase project
 
-### 1. Clone the repository
-
-```bash
-git clone <repository-url>
-cd songguessr
-```
-
-### 2. Install dependencies
+### Install
 
 ```bash
 npm install
 ```
 
-### 3. Set up environment variables
+### Frontend environment
 
-Copy the example environment file and fill in your credentials:
-
-```bash
-cd apps/frontend
-cp .env.example .env.local
-```
-
-Edit `.env.local` with your Supabase and Spotify credentials.
-
-### 4. Set up Supabase
-
-1. Create a new Supabase project.
-2. Run the initial migration (`apps/backend/supabase/migrations/0001_initial_schema.sql`) in the Supabase SQL editor.
-3. Enable the `supabase_realtime` publication for the tables `rooms`, `players`, and `game_rounds`.
-4. Note your project URL and anon key for the environment variables.
-
-### 5. Set up Spotify OAuth
-
-1. Configure Spotify as the provider in your Supabase project.
-2. Add your deployed app callback URL to the allowed redirect URLs in Supabase, for example `https://your-vercel-app.vercel.app/auth/callback`.
-3. Copy the Client ID and Client Secret to your environment variables.
-
-### 6. Deploy to Vercel
-
-1. Push this repository to GitHub.
-2. Import the GitHub repo into Vercel.
-3. Set the environment variables from `apps/frontend/.env.example` in the Vercel project settings.
-4. Set `NEXT_PUBLIC_APP_URL` to your Vercel domain.
-5. Make sure the Supabase redirect allowlist includes your Vercel callback URL.
-6. Deploy the frontend and use the Vercel URL instead of localhost.
-
-### 7. Run the development server
-
-From the root directory:
+Create `apps/frontend/.env.local` and fill in the required values:
 
 ```bash
-npm run dev
+NEXT_PUBLIC_SUPABASE_URL=...
+NEXT_PUBLIC_SUPABASE_ANON_KEY=...
+SUPABASE_SERVICE_ROLE_KEY=...
+NEXT_PUBLIC_APP_URL=http://localhost:3000
 ```
 
-Or run frontend and backend separately:
+If you deploy the frontend, set `NEXT_PUBLIC_APP_URL` to the public domain.
+
+### Run the frontend
 
 ```bash
-npm run dev:frontend
-# In another terminal
-npm run dev:backend
+npm run dev --workspace=frontend
 ```
 
-The frontend will be available at [http://localhost:3000](http://localhost:3000) locally, and at your Vercel domain after deployment.
+### Typecheck
 
-## Game Flow
+```bash
+npx tsc --noEmit -p apps/frontend/tsconfig.json
+```
 
-1. **Lobby**: Host creates a room, shares the 6‑digit code. Players join and connect their Spotify accounts.
-2. **Track Pooling**: Once all players are ready, the backend fetches each player's top tracks, filters for available previews, and selects 10 random tracks.
-3. **Quiz Rounds** (10 rounds):
-   - A 30‑second audio preview plays.
-   - Four multiple‑choice options appear (one correct, three distractors from the same pool).
-   - Players answer as quickly as possible.
-   - Points are awarded based on correctness and speed.
-4. **Leaderboard**: After the final round, players see their rankings, total points, and fun stats.
+### Production build
 
-## API Endpoints (Planned)
+```bash
+npm run build
+```
 
-- `POST /api/rooms` – create a new room
-- `GET /api/rooms/:code` – get room details
-- `POST /api/rooms/:code/join` – join a room
-- `POST /api/spotify/auth` – initiate Spotify OAuth
-- `GET /api/spotify/callback` – OAuth callback
-- `GET /api/spotify/tracks` – fetch user's top tracks
-- `WS /realtime` – Supabase Realtime WebSocket for game events
+## Supabase Setup
 
-## Development Roadmap
+Apply the SQL migrations in order:
 
-- [x] Project architecture & data models
-- [x] Monorepo setup with Next.js frontend
-- [x] Room lobby UI boilerplate
-- [x] Supabase migration schema
-- [ ] Implement Supabase Auth with Spotify OAuth
-- [ ] Real‑time room synchronization (Supabase Realtime)
-- [ ] Spotify track fetching & caching
-- [ ] Quiz game UI with audio player
-- [ ] Scoring system & leaderboard
-- [ ] Mobile responsiveness & polish
-- [ ] Deployment to Vercel & Supabase
+1. `apps/backend/supabase/migrations/0001_initial_schema.sql`
+2. `apps/backend/supabase/migrations/0002_add_room_name.sql`
+3. `apps/backend/supabase/migrations/0003_song_selection.sql`
+4. `apps/backend/supabase/migrations/0004_add_youtube_id.sql`
+5. `apps/backend/supabase/migrations/0005_auto_cleanup_finished_rooms.sql`
+6. `apps/backend/supabase/migrations/0006_allow_duplicate_room_song_picks.sql`
+7. `apps/backend/supabase/migrations/0007_enable_realtime_for_player_answers.sql`
+8. `apps/backend/supabase/migrations/0008_cleanup_orphan_tracks.sql`
+
+Important notes:
+
+- `pg_cron` is used for automatic cleanup of finished rooms.
+- `supabase_realtime` should include `rooms`, `players`, `game_rounds`, `room_songs`, and `player_answers`.
+- Room cleanup removes match data, while orphaned cached tracks are cleaned separately once no longer referenced.
+
+## Important Frontend Areas
+
+- `apps/frontend/components/RoomLobby.tsx`
+  Lobby, ready state, room settings, share / leave actions
+- `apps/frontend/components/SongSelection.tsx`
+  Song picking flow, masked room songs, auto-start countdown
+- `apps/frontend/components/GamePlay.tsx`
+  Match sync, rounds, answer flow, intermission, scoring UI
+- `apps/frontend/components/AudioPlayer.tsx`
+  YouTube playback, autoplay fallback, preview window control
+- `apps/frontend/components/Leaderboard.tsx`
+  Final rankings, shareable image, auto-leave cleanup flow
+
+## API Routes Used By The App
+
+- `POST /api/rooms`
+- `GET /api/rooms/[code]`
+- `POST /api/rooms/[code]/join`
+- `POST /api/rooms/[code]/ready`
+- `PATCH /api/rooms/[code]/settings`
+- `GET /api/rooms/[code]/songs`
+- `POST /api/rooms/[code]/songs`
+- `DELETE /api/rooms/[code]/songs`
+- `POST /api/rooms/[code]/start`
+- `POST /api/rooms/[code]/answer`
+- `POST /api/rooms/[code]/leave`
+- `GET /api/youtube/search`
+
+## Notes
+
+- The `tracks` table is used as a cache, not as permanent match history.
+- Temporary local planning notes inside `plans/` are intentionally not part of the repo history.
 
 ## License
 
