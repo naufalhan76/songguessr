@@ -2,15 +2,15 @@ import { NextRequest, NextResponse } from 'next/server';
 import { createServiceClient } from '@/lib/supabase-server';
 import { generateRoomCode } from '@songguessr/shared';
 
-// POST /api/rooms — create a new room
+// POST /api/rooms — create a new room (guest-friendly, no auth needed)
 export async function POST(request: NextRequest) {
   try {
     const supabase = createServiceClient();
     const body = await request.json().catch(() => ({}));
 
-    const hostId = body.host_id as string | undefined;
-    if (!hostId) {
-      return NextResponse.json({ success: false, error: 'host_id is required' }, { status: 400 });
+    const displayName = (body.display_name as string)?.trim();
+    if (!displayName) {
+      return NextResponse.json({ success: false, error: 'display_name is required' }, { status: 400 });
     }
 
     const code = generateRoomCode();
@@ -20,54 +20,67 @@ export async function POST(request: NextRequest) {
       max_players: body.max_players ?? 4,
       allow_skips: false,
       point_system: body.point_system ?? 'speed',
+      selection_time: body.selection_time ?? 5,
     };
 
-    // Ensure the user exists in public.users (service role bypasses RLS)
-    const { data: existingUser } = await supabase
-      .from('users')
-      .select('id')
-      .eq('id', hostId)
-      .single();
+    // Create a player ID first (will be the host_id)
+    // We use uuid_generate_v4() via Supabase to get a unique ID
+    // First create the room, then create the host player
 
-    if (!existingUser) {
-      // Create a minimal user record so the FK constraint is satisfied
-      const { error: userError } = await supabase
-        .from('users')
-        .upsert({
-          id: hostId,
-          email: body.email || 'unknown@spotify.user',
-          display_name: body.display_name || 'Spotify User',
-          avatar_url: body.avatar_url || null,
-        });
-
-      if (userError) {
-        console.error('Failed to create user record', userError);
-        return NextResponse.json({ success: false, error: 'Failed to create user profile: ' + userError.message }, { status: 500 });
-      }
-    }
-
-    // Insert room
+    // Generate a temporary host ID — we'll use the player ID
+    // Insert room with a placeholder host_id, then update after player creation
     const { data: room, error: roomError } = await supabase
       .from('rooms')
-      .insert({ code, host_id: hostId, status: 'waiting', settings })
+      .insert({
+        code,
+        host_id: '00000000-0000-0000-0000-000000000000', // temporary, updated below
+        status: 'waiting',
+        settings,
+        room_name: body.room_name || null,
+      })
       .select()
       .single();
 
-    if (roomError) {
+    if (roomError || !room) {
       console.error('Failed to create room', roomError);
-      return NextResponse.json({ success: false, error: roomError.message }, { status: 500 });
+      return NextResponse.json({ success: false, error: roomError?.message ?? 'Failed to create room' }, { status: 500 });
     }
 
-    // Auto-join the host as a player
-    const { error: joinError } = await supabase
+    // Auto-join the host as a player (guest — no user_id)
+    const { data: hostPlayer, error: joinError } = await supabase
       .from('players')
-      .insert({ room_id: room.id, user_id: hostId, score: 0, is_ready: false });
+      .insert({
+        room_id: room.id,
+        user_id: null,
+        display_name: displayName,
+        score: 0,
+        is_ready: false,
+      })
+      .select()
+      .single();
 
-    if (joinError) {
+    if (joinError || !hostPlayer) {
       console.error('Failed to auto-join host', joinError);
+      // Clean up the room
+      await supabase.from('rooms').delete().eq('id', room.id);
+      return NextResponse.json({ success: false, error: 'Failed to create player' }, { status: 500 });
     }
 
-    return NextResponse.json({ success: true, data: room });
+    // Update room with the actual host_id (player ID)
+    const { data: updatedRoom } = await supabase
+      .from('rooms')
+      .update({ host_id: hostPlayer.id })
+      .eq('id', room.id)
+      .select()
+      .single();
+
+    return NextResponse.json({
+      success: true,
+      data: {
+        room: updatedRoom ?? room,
+        player: hostPlayer,
+      },
+    });
   } catch (err) {
     console.error('POST /api/rooms error', err);
     return NextResponse.json({ success: false, error: 'Internal server error' }, { status: 500 });

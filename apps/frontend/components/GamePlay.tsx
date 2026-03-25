@@ -10,7 +10,7 @@ import { Card, Chip } from '@heroui/react';
 interface GamePlayProps {
   room: Room;
   players: Player[];
-  currentUserId: string;
+  currentPlayerId: string;
   roomCode: string;
   tracks: Track[];
   onGameEnd: () => void;
@@ -22,7 +22,7 @@ interface RoundData {
   track_id: string;
 }
 
-export default function GamePlay({ room, players, currentUserId, roomCode, tracks, onGameEnd }: GamePlayProps) {
+export default function GamePlay({ room, players, currentPlayerId, roomCode, tracks, onGameEnd }: GamePlayProps) {
   const [rounds, setRounds] = useState<RoundData[]>([]);
   const [currentRoundIndex, setCurrentRoundIndex] = useState(0);
   const [timeRemaining, setTimeRemaining] = useState(room.settings.time_per_round);
@@ -128,7 +128,7 @@ export default function GamePlay({ room, players, currentUserId, roomCode, track
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          user_id: currentUserId,
+          player_id: currentPlayerId,
           round_id: currentRound.id,
           selected_track_id: trackId,
           time_taken_ms: timeTakenMs,
@@ -323,10 +323,10 @@ export default function GamePlay({ room, players, currentUserId, roomCode, track
           {players.map((player) => (
             <div key={player.id} className="flex items-center gap-2">
               <div className="grid h-7 w-7 place-items-center rounded-full border border-white/10 bg-white/5 text-xs font-mono text-white/60">
-                {player.user_id.slice(-2).toUpperCase()}
+                {(player.display_name || 'P').slice(0, 2).toUpperCase()}
               </div>
               <span className="text-sm font-medium text-white">
-                {roundScores[currentRound?.id] && player.user_id === currentUserId
+                {roundScores[currentRound?.id] && player.id === currentPlayerId
                   ? roundScores[currentRound.id]
                   : player.score}
               </span>

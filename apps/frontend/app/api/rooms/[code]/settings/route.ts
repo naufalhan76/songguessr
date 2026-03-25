@@ -13,6 +13,7 @@ export async function PATCH(request: NextRequest, context: RouteContext) {
     const body = await request.json().catch(() => ({}));
 
     const hostId = body.host_id as string | undefined;
+    const newStatus = body.status as string | undefined;
     if (!hostId) {
       return NextResponse.json({ success: false, error: 'host_id is required' }, { status: 400 });
     }
@@ -33,8 +34,8 @@ export async function PATCH(request: NextRequest, context: RouteContext) {
       return NextResponse.json({ success: false, error: 'Only the host can update settings' }, { status: 403 });
     }
 
-    // Only allow updates while room is waiting
-    if (room.status !== 'waiting') {
+    // Only allow updates while room is waiting or selecting
+    if (room.status !== 'waiting' && room.status !== 'selecting') {
       return NextResponse.json({ success: false, error: 'Cannot update settings after game has started' }, { status: 400 });
     }
 
@@ -76,8 +77,22 @@ export async function PATCH(request: NextRequest, context: RouteContext) {
       }
     }
 
+    if (body.selection_time !== undefined) {
+      const validTimes = [5, 10, 15];
+      const selTime = Number(body.selection_time);
+      if (validTimes.includes(selTime)) {
+        currentSettings.selection_time = selTime;
+        settingsChanged = true;
+      }
+    }
+
     if (settingsChanged) {
       updates.settings = currentSettings;
+    }
+
+    // Handle status transition to 'selecting'
+    if (newStatus === 'selecting' && room.status === 'waiting') {
+      updates.status = 'selecting';
     }
 
     if (Object.keys(updates).length === 0) {

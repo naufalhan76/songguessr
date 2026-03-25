@@ -13,7 +13,7 @@ export interface Room {
     code: string;
     room_name: string | null;
     host_id: string;
-    status: 'waiting' | 'active' | 'finished';
+    status: 'waiting' | 'selecting' | 'active' | 'finished';
     settings: RoomSettings;
     created_at: string;
     started_at: string | null;
@@ -25,11 +25,13 @@ export interface RoomSettings {
     max_players: number;
     allow_skips: boolean;
     point_system: 'speed' | 'correct_only';
+    selection_time: number;
 }
 export interface Player {
     id: string;
     room_id: string;
-    user_id: string;
+    user_id: string | null;
+    display_name: string | null;
     score: number;
     is_ready: boolean;
     joined_at: string;
@@ -45,6 +47,13 @@ export interface Track {
     popularity: number;
     album_art_url: string;
     cached_at: string;
+}
+export interface RoomSong {
+    id: string;
+    room_id: string;
+    player_id: string;
+    track_id: string;
+    added_at: string;
 }
 export interface GameRound {
     id: string;
@@ -82,6 +91,22 @@ export type RoomEvent = {
     type: 'room_started';
     payload: {
         room_id: string;
+    };
+} | {
+    type: 'song_added';
+    payload: RoomSong & {
+        track: Track;
+    };
+} | {
+    type: 'song_removed';
+    payload: {
+        room_song_id: string;
+    };
+} | {
+    type: 'selection_started';
+    payload: {
+        room_id: string;
+        ends_at: string;
     };
 } | {
     type: 'round_started';
@@ -129,22 +154,19 @@ export interface SpotifyTrack {
     duration_ms: number;
     popularity: number;
 }
-export interface SpotifyTopTracksResponse {
-    items: SpotifyTrack[];
+export interface SpotifySearchResult {
+    tracks: SpotifyTrack[];
+    total: number;
 }
-export interface SpotifyAuthState {
-    redirect_uri: string;
-    room_code?: string;
-}
-export interface SpotifyTokenResponse {
-    access_token: string;
-    refresh_token: string;
-    expires_in: number;
+export interface GuestSession {
+    id: string;
+    display_name: string;
+    created_at: string;
 }
 export interface LobbyState {
     room: Room;
     players: Player[];
-    currentUser: User | null;
+    currentPlayerId: string | null;
     isHost: boolean;
 }
 export interface GameState {
@@ -195,7 +217,6 @@ export type Database = {
                 Row: Player;
                 Insert: Partial<Player> & {
                     room_id: string;
-                    user_id: string;
                 };
                 Update: Partial<Player>;
             };
@@ -209,6 +230,15 @@ export type Database = {
                     duration_ms: number;
                 };
                 Update: Partial<Track>;
+            };
+            room_songs: {
+                Row: RoomSong;
+                Insert: Partial<RoomSong> & {
+                    room_id: string;
+                    player_id: string;
+                    track_id: string;
+                };
+                Update: Partial<RoomSong>;
             };
             game_rounds: {
                 Row: GameRound;

@@ -2,17 +2,20 @@
 
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { generateRoomCode } from '@songguessr/shared';
-import { supabase, signInWithSpotify } from '@/lib/supabase';
+import { createGuestSession, getGuestSession, setRoomPlayerId } from '@/lib/supabase';
 import { Card, Chip, Separator } from '@heroui/react';
 
 const stats = [
   { value: '10', label: 'Rounds' },
   { value: '30s', label: 'Preview' },
-  { value: '2-4', label: 'Players' },
+  { value: '2-8', label: 'Players' },
 ];
 
 const steps = [
+  {
+    title: 'Pick',
+    text: 'Each player picks songs. Missing picks get auto-filled from the global charts.',
+  },
   {
     title: 'Listen',
     text: 'Quick previews and a clean stage so the track stays in focus.',
@@ -30,119 +33,40 @@ const steps = [
 export default function LandingPage() {
   const router = useRouter();
   const [roomCode, setRoomCode] = useState('');
-  const [userId, setUserId] = useState<string | null>(null);
-  const [userProfile, setUserProfile] = useState<{ display_name: string; avatar_url: string | null } | null>(null);
+  const [displayName, setDisplayName] = useState('');
   const [isCreating, setIsCreating] = useState(false);
   const canJoin = roomCode.length === 6;
 
+  // Restore display name from guest session
   useEffect(() => {
-    let cancelled = false;
-
-    const loadUser = async () => {
-      const { data: { session } } = await supabase.auth.getSession();
-      if (cancelled) return;
-
-      if (session?.user) {
-        setUserId(session.user.id);
-        
-        // Upsert user profile to ensure they exist in public.users before creating a room
-        const userProfileData = {
-          id: session.user.id,
-          email: session.user.email ?? '',
-          display_name: session.user.user_metadata?.full_name ?? session.user.email?.split('@')[0] ?? 'Spotify User',
-          avatar_url: session.user.user_metadata?.avatar_url ?? null,
-        };
-
-        // If we have a fresh token from session, save it too
-        if (session.provider_token) {
-          Object.assign(userProfileData, {
-            spotify_access_token: session.provider_token,
-            spotify_refresh_token: session.provider_refresh_token ?? null,
-            spotify_expires_at: session.expires_at ? new Date(session.expires_at * 1000).toISOString() : null,
-          });
-        }
-
-        const { data: profile } = await supabase
-          .from('users')
-          .upsert(userProfileData as any)
-          .select('display_name, avatar_url')
-          .single();
-
-        if (!cancelled) {
-          setUserId(session.user.id);
-          if (profile) {
-            setUserProfile(profile as any);
-          }
-        }
-      }
-    };
-    loadUser();
-
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (_event, session) => {
-      if (cancelled) return;
-      
-      const newUserId = session?.user?.id ?? null;
-      
-      if (!newUserId) {
-        setUserId(null);
-        setUserProfile(null);
-      } else {
-        // Always attempt an upsert on auth state change to capture refreshed tokens
-        const userProfileData = {
-          id: session!.user.id,
-          email: session!.user.email ?? '',
-          display_name: session!.user.user_metadata?.full_name ?? session!.user.email?.split('@')[0] ?? 'Spotify User',
-          avatar_url: session!.user.user_metadata?.avatar_url ?? null,
-        };
-
-        if (session!.provider_token) {
-          Object.assign(userProfileData, {
-            spotify_access_token: session!.provider_token,
-            spotify_refresh_token: session!.provider_refresh_token ?? null,
-            spotify_expires_at: session!.expires_at ? new Date(session!.expires_at * 1000).toISOString() : null,
-          });
-        }
-
-        const { data: profile } = await supabase
-          .from('users')
-          .upsert(userProfileData as any)
-          .select('display_name, avatar_url')
-          .single();
-
-        if (!cancelled) {
-          setUserId(newUserId);
-          if (profile) {
-            setUserProfile(profile as any);
-          }
-        }
-      }
-    });
-
-    return () => {
-      cancelled = true;
-      subscription.unsubscribe();
-    };
+    const session = getGuestSession();
+    if (session) {
+      setDisplayName(session.display_name);
+    }
   }, []);
 
   const handleCreateRoom = async () => {
-    if (!userId) {
-      // Not logged in, redirect to Spotify auth first
-      const redirectTo = `${window.location.origin}/auth/callback?next=/`;
-      await signInWithSpotify(redirectTo);
+    if (!displayName.trim()) {
+      alert('Enter your display name first');
       return;
     }
 
     setIsCreating(true);
     try {
+      // Create guest session
+      createGuestSession(displayName.trim());
+
       const res = await fetch('/api/rooms', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ host_id: userId }),
+        body: JSON.stringify({ display_name: displayName.trim() }),
       });
       const json = await res.json();
 
       if (json.success) {
-        router.push(`/room/${json.data.code}`);
+        // Store the player_id for this room
+        setRoomPlayerId(json.data.room.code, json.data.player.id);
+        router.push(`/room/${json.data.room.code}`);
       } else {
         alert(json.error || 'Failed to create room');
       }
@@ -159,12 +83,6 @@ export default function LandingPage() {
     router.push(`/room/${roomCode}`);
   };
 
-  const handleSignOut = async () => {
-    await supabase.auth.signOut();
-    setUserProfile(null);
-    setUserId(null);
-  };
-
   return (
     <main className="mx-auto flex min-h-screen w-full max-w-7xl flex-col px-4 py-5 sm:px-6 lg:px-8">
       <header className="flex flex-col gap-4 border-b border-white/10 pb-5 sm:flex-row sm:items-end sm:justify-between">
@@ -174,33 +92,8 @@ export default function LandingPage() {
           </div>
           <div>
             <div className="text-[0.7rem] uppercase tracking-[0.42em] text-white/40">Songguessr</div>
-              <div className="text-sm text-white/65">Fast music guessing rooms</div>
+            <div className="text-sm text-white/65">Fast music guessing rooms</div>
           </div>
-        </div>
-
-        <div>
-          {userId ? (
-            <div className="flex flex-wrap items-center gap-3">
-              <div className="flex items-center gap-2 rounded-full border border-emerald-400/20 bg-emerald-400/10 py-1.5 pl-2 pr-4 text-emerald-300">
-                {userProfile?.avatar_url ? (
-                  <img src={userProfile.avatar_url} alt="" className="h-6 w-6 rounded-full" />
-                ) : (
-                  <div className="grid h-6 w-6 place-items-center rounded-full bg-emerald-400/20 text-[10px] font-bold">
-                    {userProfile?.display_name?.slice(0, 2).toUpperCase() || 'SP'}
-                  </div>
-                )}
-                <span className="text-sm font-medium">{userProfile?.display_name || 'Spotify User'}</span>
-              </div>
-              <button onClick={handleSignOut} className="text-xs text-white/40 hover:text-white/70 hover:underline">
-                Sign out
-              </button>
-            </div>
-          ) : (
-            <div className="flex items-center gap-2 text-xs uppercase tracking-[0.35em] text-white/55">
-              <span className="h-2.5 w-2.5 rounded-full bg-amber-400 shadow-[0_0_18px_rgba(251,191,36,0.45)]" />
-              Not signed in
-            </div>
-          )}
         </div>
       </header>
 
@@ -208,7 +101,7 @@ export default function LandingPage() {
         <div className="space-y-8">
           <div className="space-y-5">
             <Chip variant="soft" className="border border-emerald-400/20 bg-emerald-400/10 text-emerald-300">
-              Private multiplayer room
+              No login required
             </Chip>
             <div className="space-y-4">
               <h1 className="max-w-4xl text-4xl font-semibold tracking-[-0.07em] text-white sm:text-5xl lg:text-7xl">
@@ -217,8 +110,8 @@ export default function LandingPage() {
                 Keep the round moving.
               </h1>
               <p className="max-w-2xl text-sm leading-7 text-white/62 sm:text-base lg:text-lg">
-                Songguessr turns Spotify listening data into fast, private rounds with a clean room layout,
-                clear controls, and just enough visual polish to stay memorable.
+                Pick your own songs, challenge your friends, and see who really
+                knows their music. Just enter a name and start playing.
               </p>
             </div>
           </div>
@@ -234,30 +127,40 @@ export default function LandingPage() {
             ))}
           </div>
 
-          <div className="flex flex-wrap gap-3">
-            <button
-              type="button"
-              onClick={handleCreateRoom}
-              disabled={isCreating}
-              className="inline-flex h-12 items-center justify-center rounded-full bg-white px-5 text-sm font-medium text-black shadow-lg shadow-white/5 transition hover:scale-[1.01] active:scale-[0.99] disabled:opacity-50"
-            >
-              {isCreating ? 'Creating...' : 'Create room'}
-            </button>
-            <button type="button" onClick={handleJoinRoom} disabled={!canJoin} className="inline-flex h-12 items-center justify-center rounded-full border border-white/15 px-5 text-sm font-medium text-white transition hover:bg-white/5 disabled:cursor-not-allowed disabled:opacity-45">
-              Join room
-            </button>
+          {/* Create room form */}
+          <div className="space-y-3">
+            <input
+              value={displayName}
+              onChange={(e) => setDisplayName(e.target.value.slice(0, 20))}
+              maxLength={20}
+              placeholder="Your display name"
+              className="h-12 w-full max-w-sm rounded-2xl border border-white/12 bg-black/30 px-4 text-sm text-white outline-none transition placeholder:text-white/30 focus:border-white/30"
+            />
+            <div className="flex flex-wrap gap-3">
+              <button
+                type="button"
+                onClick={handleCreateRoom}
+                disabled={isCreating || !displayName.trim()}
+                className="inline-flex h-12 items-center justify-center rounded-full bg-white px-5 text-sm font-medium text-black shadow-lg shadow-white/5 transition hover:scale-[1.01] active:scale-[0.99] disabled:opacity-50"
+              >
+                {isCreating ? 'Creating...' : 'Create room'}
+              </button>
+              <button type="button" onClick={handleJoinRoom} disabled={!canJoin} className="inline-flex h-12 items-center justify-center rounded-full border border-white/15 px-5 text-sm font-medium text-white transition hover:bg-white/5 disabled:cursor-not-allowed disabled:opacity-45">
+                Join room
+              </button>
+            </div>
           </div>
         </div>
 
         <Card className="border border-white/10 bg-white/[0.04] shadow-[0_20px_80px_rgba(0,0,0,0.38)]">
           <Card.Header className="flex flex-col items-start gap-3 px-6 pt-6">
             <Chip variant="secondary" className="bg-white/10 text-white/72">
-              Room preview
+              How it works
             </Chip>
             <div>
               <h2 className="text-2xl font-semibold tracking-[-0.05em] text-white">A room that stays readable</h2>
               <p className="mt-1 text-sm text-white/55">
-                Designed for fast starts, clear player state, and a calmer visual rhythm.
+                Create a room, pick songs, and challenge your friends.
               </p>
             </div>
           </Card.Header>
@@ -275,21 +178,21 @@ export default function LandingPage() {
               </div>
               <div className="flex items-center justify-between text-sm text-white/55">
                 <span>Mode</span>
-                <span className="text-white">Top tracks</span>
+                <span className="text-white">Player song picks</span>
               </div>
             </div>
 
             <div className="grid gap-3 sm:grid-cols-2">
               <Card className="border border-white/10 bg-white/[0.03] shadow-none">
                 <Card.Content className="p-4">
-                  <div className="text-xs uppercase tracking-[0.3em] text-white/40">Layout</div>
-                  <div className="mt-1 text-sm text-white/70">A quiet structure that keeps the room state easy to scan.</div>
+                  <div className="text-xs uppercase tracking-[0.3em] text-white/40">Song selection</div>
+                  <div className="mt-1 text-sm text-white/70">Every player picks songs. Auto-fill from Top 100 if time runs out.</div>
                 </Card.Content>
               </Card>
               <Card className="border border-white/10 bg-white/[0.03] shadow-none">
                 <Card.Content className="p-4">
-                  <div className="text-xs uppercase tracking-[0.3em] text-white/40">Controls</div>
-                  <div className="mt-1 text-sm text-white/70">Quick actions with immediate feedback for create and join.</div>
+                  <div className="text-xs uppercase tracking-[0.3em] text-white/40">Fair play</div>
+                  <div className="mt-1 text-sm text-white/70">Everyone knows their own picks. Advantage is symmetric across players.</div>
                 </Card.Content>
               </Card>
             </div>
@@ -297,7 +200,7 @@ export default function LandingPage() {
         </Card>
       </section>
 
-      <section className="grid gap-4 border-t border-white/10 py-8 md:grid-cols-3">
+      <section className="grid gap-4 border-t border-white/10 py-8 md:grid-cols-4">
         {steps.map((item) => (
           <Card key={item.title} className="border border-white/10 bg-white/[0.03] shadow-none transition-transform duration-200 hover:-translate-y-0.5 hover:bg-white/[0.05]">
             <Card.Content className="p-5">

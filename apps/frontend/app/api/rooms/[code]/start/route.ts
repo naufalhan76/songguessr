@@ -1,20 +1,21 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createServiceClient } from '@/lib/supabase-server';
+import { getTop100Global } from '@/lib/spotify';
 
 interface RouteContext {
   params: Promise<{ code: string }>;
 }
 
-// POST /api/rooms/[code]/start — start the game (host only)
+// POST /api/rooms/[code]/start — start the game (host only, from selecting phase)
 export async function POST(request: NextRequest, context: RouteContext) {
   try {
     const { code } = await context.params;
     const supabase = createServiceClient();
     const body = await request.json().catch(() => ({}));
 
-    const hostId = body.host_id as string | undefined;
-    if (!hostId) {
-      return NextResponse.json({ success: false, error: 'host_id is required' }, { status: 400 });
+    const hostPlayerId = body.host_player_id as string | undefined;
+    if (!hostPlayerId) {
+      return NextResponse.json({ success: false, error: 'host_player_id is required' }, { status: 400 });
     }
 
     // Get room
@@ -28,15 +29,15 @@ export async function POST(request: NextRequest, context: RouteContext) {
       return NextResponse.json({ success: false, error: 'Room not found' }, { status: 404 });
     }
 
-    if (room.host_id !== hostId) {
+    if (room.host_id !== hostPlayerId) {
       return NextResponse.json({ success: false, error: 'Only the host can start the game' }, { status: 403 });
     }
 
-    if (room.status !== 'waiting') {
-      return NextResponse.json({ success: false, error: 'Game already started' }, { status: 400 });
+    if (room.status !== 'selecting') {
+      return NextResponse.json({ success: false, error: 'Room must be in song selection phase to start' }, { status: 400 });
     }
 
-    // Check all players are ready and at least 2
+    // Get all players
     const { data: players } = await supabase
       .from('players')
       .select('*')
@@ -46,104 +47,78 @@ export async function POST(request: NextRequest, context: RouteContext) {
       return NextResponse.json({ success: false, error: 'Need at least 2 players' }, { status: 400 });
     }
 
-    const allReady = players.every((p) => p.is_ready);
-    if (!allReady) {
-      return NextResponse.json({ success: false, error: 'All players must be ready' }, { status: 400 });
-    }
+    const settings = room.settings as { rounds?: number };
+    const roundCount = settings.rounds ?? 10;
 
-    // Fetch tracks from all players and build rounds
-    const roundCount = (room.settings as { rounds?: number })?.rounds ?? 10;
+    // Get all room songs with their tracks
+    const { data: roomSongs } = await supabase
+      .from('room_songs')
+      .select('*, tracks(*)')
+      .eq('room_id', room.id);
 
-    // Collect Spotify tracks from all players via their user records
-    const userIds = players.map((p) => p.user_id);
-    const { data: users } = await supabase
-      .from('users')
-      .select('id, spotify_access_token')
-      .in('id', userIds);
+    let existingTracks = (roomSongs ?? [])
+      .map((rs) => rs.tracks)
+      .filter((t): t is NonNullable<typeof t> => !!t && !!t.preview_url);
 
-    const allTracks: Array<{
-      spotify_id: string;
-      title: string;
-      artists: string[];
-      album: string;
-      preview_url: string;
-      album_art_url: string;
-      duration_ms: number;
-      popularity: number;
-    }> = [];
-
-    for (const user of users ?? []) {
-      if (!user.spotify_access_token) continue;
+    // Auto-fill from Top 100 Global if not enough songs
+    const neededSongs = Math.max(roundCount, 4);
+    if (existingTracks.length < neededSongs) {
+      const shortage = neededSongs - existingTracks.length;
+      console.log(`Auto-filling ${shortage} songs from Top 100 Global`);
 
       try {
-        const res = await fetch('https://api.spotify.com/v1/me/top/tracks?limit=50&time_range=medium_term', {
-          headers: { Authorization: `Bearer ${user.spotify_access_token}` },
-        });
+        const globalTracks = await getTop100Global();
 
-        if (!res.ok) continue;
+        // Filter out tracks already in the room
+        const existingSpotifyIds = new Set(existingTracks.map((t) => t.spotify_id));
+        const fillTracks = globalTracks
+          .filter((t) => !existingSpotifyIds.has(t.spotify_id))
+          .slice(0, shortage);
 
-        const data = await res.json();
-        for (const item of data.items ?? []) {
-          if (!item.preview_url) continue;
-          allTracks.push({
-            spotify_id: item.id,
-            title: item.name,
-            artists: item.artists.map((a: { name: string }) => a.name),
-            album: item.album.name,
-            preview_url: item.preview_url,
-            album_art_url: item.album.images?.[0]?.url ?? '',
-            duration_ms: item.duration_ms,
-            popularity: item.popularity,
-          });
+        // Upsert fill tracks into DB
+        for (const t of fillTracks) {
+          const { data: dbTrack } = await supabase
+            .from('tracks')
+            .upsert(
+              { ...t, cached_at: new Date().toISOString() },
+              { onConflict: 'spotify_id' }
+            )
+            .select()
+            .single();
+
+          if (dbTrack) {
+            existingTracks.push(dbTrack);
+
+            // Add as room_song from the host's player record
+            await supabase.from('room_songs').insert({
+              room_id: room.id,
+              player_id: hostPlayerId,
+              track_id: dbTrack.id,
+            }).select(); // ignore duplicate errors
+          }
         }
       } catch (e) {
-        console.error(`Failed to fetch tracks for user ${user.id}`, e);
+        console.error('Failed to auto-fill from Top 100 Global', e);
       }
     }
 
-    // Deduplicate, shuffle, pick tracks for rounds
-    const uniqueMap = new Map<string, (typeof allTracks)[0]>();
-    for (const t of allTracks) {
-      if (!uniqueMap.has(t.spotify_id)) uniqueMap.set(t.spotify_id, t);
-    }
-    const uniqueTracks = [...uniqueMap.values()];
-
-    // Shuffle
-    for (let i = uniqueTracks.length - 1; i > 0; i--) {
-      const j = Math.floor(Math.random() * (i + 1));
-      [uniqueTracks[i], uniqueTracks[j]] = [uniqueTracks[j], uniqueTracks[i]];
-    }
-
-    const selectedTracks = uniqueTracks.slice(0, Math.max(roundCount, 4));
-
-    if (selectedTracks.length < 4) {
+    if (existingTracks.length < 4) {
       return NextResponse.json(
-        { success: false, error: `Not enough tracks with previews. Found ${selectedTracks.length}, need at least 4.` },
+        { success: false, error: `Not enough songs. Found ${existingTracks.length}, need at least 4.` },
         { status: 400 }
       );
     }
 
-    // Upsert tracks into DB
-    for (const t of selectedTracks) {
-      await supabase.from('tracks').upsert(
-        { ...t, cached_at: new Date().toISOString() },
-        { onConflict: 'spotify_id' }
-      );
+    // Shuffle tracks
+    for (let i = existingTracks.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [existingTracks[i], existingTracks[j]] = [existingTracks[j], existingTracks[i]];
     }
 
-    // Re-fetch the track IDs
-    const spotifyIds = selectedTracks.map((t) => t.spotify_id);
-    const { data: dbTracks } = await supabase
-      .from('tracks')
-      .select('*')
-      .in('spotify_id', spotifyIds);
-
-    if (!dbTracks || dbTracks.length < 4) {
-      return NextResponse.json({ success: false, error: 'Failed to persist tracks' }, { status: 500 });
-    }
+    // Pick tracks for rounds
+    const roundTracks = existingTracks.slice(0, roundCount);
 
     // Create game rounds
-    const roundTracks = dbTracks.slice(0, roundCount);
     for (let i = 0; i < roundTracks.length; i++) {
       await supabase.from('game_rounds').insert({
         room_id: room.id,
@@ -163,7 +138,7 @@ export async function POST(request: NextRequest, context: RouteContext) {
       data: {
         room_id: room.id,
         total_rounds: roundTracks.length,
-        tracks: dbTracks,
+        tracks: existingTracks, // send all tracks (for answer options)
       },
     });
   } catch (err) {

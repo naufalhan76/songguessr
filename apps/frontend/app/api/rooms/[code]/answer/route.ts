@@ -12,14 +12,14 @@ export async function POST(request: NextRequest, context: RouteContext) {
     const supabase = createServiceClient();
     const body = await request.json().catch(() => ({}));
 
-    const userId = body.user_id as string | undefined;
+    const playerId = body.player_id as string | undefined;
     const roundId = body.round_id as string | undefined;
     const selectedTrackId = body.selected_track_id as string | undefined;
     const timeTakenMs = body.time_taken_ms as number | undefined;
 
-    if (!userId || !roundId || !selectedTrackId || timeTakenMs === undefined) {
+    if (!playerId || !roundId || !selectedTrackId || timeTakenMs === undefined) {
       return NextResponse.json(
-        { success: false, error: 'user_id, round_id, selected_track_id, and time_taken_ms are required' },
+        { success: false, error: 'player_id, round_id, selected_track_id, and time_taken_ms are required' },
         { status: 400 }
       );
     }
@@ -30,12 +30,12 @@ export async function POST(request: NextRequest, context: RouteContext) {
       return NextResponse.json({ success: false, error: 'Room not found' }, { status: 404 });
     }
 
-    // Find player
+    // Find player by player_id
     const { data: player } = await supabase
       .from('players')
       .select('*')
       .eq('room_id', room.id)
-      .eq('user_id', userId)
+      .eq('id', playerId)
       .single();
 
     if (!player) {

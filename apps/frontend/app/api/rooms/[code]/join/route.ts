@@ -5,16 +5,16 @@ interface RouteContext {
   params: Promise<{ code: string }>;
 }
 
-// POST /api/rooms/[code]/join — join a room
+// POST /api/rooms/[code]/join — join a room as guest
 export async function POST(request: NextRequest, context: RouteContext) {
   try {
     const { code } = await context.params;
     const supabase = createServiceClient();
     const body = await request.json().catch(() => ({}));
 
-    const userId = body.user_id as string | undefined;
-    if (!userId) {
-      return NextResponse.json({ success: false, error: 'user_id is required' }, { status: 400 });
+    const displayName = (body.display_name as string)?.trim();
+    if (!displayName) {
+      return NextResponse.json({ success: false, error: 'display_name is required' }, { status: 400 });
     }
 
     // Find the room
@@ -43,22 +43,16 @@ export async function POST(request: NextRequest, context: RouteContext) {
       return NextResponse.json({ success: false, error: 'Room is full' }, { status: 400 });
     }
 
-    // Check if already joined
-    const { data: existing } = await supabase
-      .from('players')
-      .select('id')
-      .eq('room_id', room.id)
-      .eq('user_id', userId)
-      .maybeSingle();
-
-    if (existing) {
-      return NextResponse.json({ success: true, data: existing, message: 'Already in room' });
-    }
-
-    // Join
+    // Join as guest player
     const { data: player, error: joinError } = await supabase
       .from('players')
-      .insert({ room_id: room.id, user_id: userId, score: 0, is_ready: false })
+      .insert({
+        room_id: room.id,
+        user_id: null,
+        display_name: displayName,
+        score: 0,
+        is_ready: false,
+      })
       .select()
       .single();
 

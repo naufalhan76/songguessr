@@ -2,12 +2,13 @@
 
 import { useState, useCallback, useEffect } from 'react';
 import { Track, Room, Player } from '@songguessr/shared';
-import { supabase } from '@/lib/supabase';
+import { supabase, getRoomPlayerId } from '@/lib/supabase';
 import RoomLobby from '@/components/RoomLobby';
+import SongSelection from '@/components/SongSelection';
 import GamePlay from '@/components/GamePlay';
 import Leaderboard from '@/components/Leaderboard';
 
-type GamePhase = 'lobby' | 'playing' | 'finished';
+type GamePhase = 'lobby' | 'selecting' | 'playing' | 'finished';
 
 interface RoomClientProps {
   roomCode: string;
@@ -18,26 +19,15 @@ export default function RoomClient({ roomCode }: RoomClientProps) {
   const [tracks, setTracks] = useState<Track[]>([]);
   const [room, setRoom] = useState<Room | null>(null);
   const [players, setPlayers] = useState<Player[]>([]);
-  const [currentUserId, setCurrentUserId] = useState<string>('');
+  const [currentPlayerId, setCurrentPlayerId] = useState<string>('');
 
-  // Load user
+  // Restore player ID from localStorage
   useEffect(() => {
-    const loadUser = async () => {
-      const { data: { session } } = await supabase.auth.getSession();
-      if (session?.user) {
-        setCurrentUserId(session.user.id);
-      }
-    };
-    loadUser();
-
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
-      if (session?.user) {
-        setCurrentUserId(session.user.id);
-      }
-    });
-
-    return () => subscription.unsubscribe();
-  }, []);
+    const savedPlayerId = getRoomPlayerId(roomCode);
+    if (savedPlayerId) {
+      setCurrentPlayerId(savedPlayerId);
+    }
+  }, [roomCode]);
 
   // Fetch room and tracks for game/leaderboard phases
   const fetchRoomData = useCallback(async () => {
@@ -46,26 +36,34 @@ export default function RoomClient({ roomCode }: RoomClientProps) {
     if (json.success) {
       setRoom(json.data.room);
       setPlayers(json.data.players);
-    }
 
-    // Fetch tracks
-    const { data: rounds } = await supabase
-      .from('game_rounds')
-      .select('track_id')
-      .eq('room_id', json.data.room.id);
-
-    if (rounds && rounds.length > 0) {
-      const trackIds = rounds.map((r) => r.track_id);
-      const { data: dbTracks } = await supabase
-        .from('tracks')
-        .select('*')
-        .in('id', trackIds);
-
-      if (dbTracks) {
-        setTracks(dbTracks as unknown as Track[]);
+      // Update phase based on room status
+      const status = json.data.room.status;
+      if (status === 'selecting' && phase === 'lobby') {
+        setPhase('selecting');
       }
     }
-  }, [roomCode]);
+
+    // Fetch tracks for when in game or leaderboard phase
+    if (json.data?.room?.id && (phase === 'playing' || phase === 'finished')) {
+      const { data: rounds } = await supabase
+        .from('game_rounds')
+        .select('track_id')
+        .eq('room_id', json.data.room.id);
+
+      if (rounds && rounds.length > 0) {
+        const trackIds = rounds.map((r) => r.track_id);
+        const { data: dbTracks } = await supabase
+          .from('tracks')
+          .select('*')
+          .in('id', trackIds);
+
+        if (dbTracks) {
+          setTracks(dbTracks as unknown as Track[]);
+        }
+      }
+    }
+  }, [roomCode, phase]);
 
   // Monitor room status for phase transitions
   useEffect(() => {
@@ -79,6 +77,13 @@ export default function RoomClient({ roomCode }: RoomClientProps) {
         (payload) => {
           const newRoom = payload.new as unknown as Room;
           setRoom(newRoom);
+
+          if (newRoom.status === 'selecting' && phase === 'lobby') {
+            setPhase('selecting');
+          }
+          if (newRoom.status === 'active' && (phase === 'selecting' || phase === 'lobby')) {
+            fetchRoomData().then(() => setPhase('playing'));
+          }
           if (newRoom.status === 'finished' && phase !== 'finished') {
             setPhase('finished');
           }
@@ -89,7 +94,12 @@ export default function RoomClient({ roomCode }: RoomClientProps) {
     return () => {
       supabase.removeChannel(channel);
     };
-  }, [room?.id, phase]);
+  }, [room?.id, phase, fetchRoomData]);
+
+  const handleSelectionStarted = useCallback(() => {
+    fetchRoomData();
+    setPhase('selecting');
+  }, [fetchRoomData]);
 
   const handleGameStarted = useCallback(async (gameTracks: unknown[]) => {
     await fetchRoomData();
@@ -111,16 +121,39 @@ export default function RoomClient({ roomCode }: RoomClientProps) {
     setPhase('finished');
   }, [room?.id, fetchRoomData]);
 
+  // Update currentPlayerId when it changes
+  const handlePlayerIdSet = useCallback((playerId: string) => {
+    setCurrentPlayerId(playerId);
+  }, []);
+
   if (phase === 'lobby') {
-    return <RoomLobby roomCode={roomCode} onGameStarted={handleGameStarted} />;
+    return (
+      <RoomLobby
+        roomCode={roomCode}
+        onSelectionStarted={handleSelectionStarted}
+        onPlayerIdSet={handlePlayerIdSet}
+      />
+    );
   }
 
-  if (phase === 'playing' && room && currentUserId) {
+  if (phase === 'selecting' && room && currentPlayerId) {
+    return (
+      <SongSelection
+        room={room}
+        players={players}
+        currentPlayerId={currentPlayerId}
+        roomCode={roomCode}
+        onGameStarted={handleGameStarted}
+      />
+    );
+  }
+
+  if (phase === 'playing' && room && currentPlayerId) {
     return (
       <GamePlay
         room={room}
         players={players}
-        currentUserId={currentUserId}
+        currentPlayerId={currentPlayerId}
         roomCode={roomCode}
         tracks={tracks}
         onGameEnd={handleGameEnd}
@@ -133,7 +166,7 @@ export default function RoomClient({ roomCode }: RoomClientProps) {
       <Leaderboard
         room={room}
         players={players}
-        currentUserId={currentUserId}
+        currentUserId={currentPlayerId}
         roomCode={roomCode}
         tracks={tracks}
       />

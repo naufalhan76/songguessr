@@ -1,19 +1,20 @@
 'use client';
 
 import { useEffect, useState, useCallback, useRef } from 'react';
-import { supabase } from '@/lib/supabase';
-import { Room, Player, User } from '@songguessr/shared';
+import { supabase, getGuestSession, getRoomPlayerId, setRoomPlayerId } from '@/lib/supabase';
+import { Room, Player } from '@songguessr/shared';
 
 interface UseRoomReturn {
   room: Room | null;
   players: Player[];
-  currentUser: User | null;
+  currentPlayerId: string | null;
+  currentPlayerName: string | null;
   isHost: boolean;
   loading: boolean;
   error: string | null;
-  hasSpotify: boolean;
-  joinRoom: () => Promise<void>;
+  joinRoom: (displayName: string) => Promise<Player | null>;
   toggleReady: (ready: boolean) => Promise<void>;
+  startSelection: () => Promise<boolean>;
   startGame: () => Promise<{ tracks: unknown[] } | null>;
   updateSettings: (settings: Record<string, unknown>) => Promise<boolean>;
   refetch: () => Promise<void>;
@@ -22,80 +23,24 @@ interface UseRoomReturn {
 export function useRoom(roomCode: string): UseRoomReturn {
   const [room, setRoom] = useState<Room | null>(null);
   const [players, setPlayers] = useState<Player[]>([]);
-  const [currentUser, setCurrentUser] = useState<User | null>(null);
+  const [currentPlayerId, setCurrentPlayerId] = useState<string | null>(null);
+  const [currentPlayerName, setCurrentPlayerName] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const channelRef = useRef<ReturnType<typeof supabase.channel> | null>(null);
 
-  // Check current auth user
+  // Restore player_id from localStorage on mount
   useEffect(() => {
-    let cancelled = false;
+    const savedPlayerId = getRoomPlayerId(roomCode);
+    if (savedPlayerId) {
+      setCurrentPlayerId(savedPlayerId);
+    }
 
-    const loadUser = async () => {
-      const { data: { session } } = await supabase.auth.getSession();
-      if (cancelled) return;
-
-      if (session?.user) {
-        // Fetch or create user profile
-        const { data: profile } = await supabase
-          .from('users')
-          .select('*')
-          .eq('id', session.user.id)
-          .single();
-
-        if (profile) {
-          setCurrentUser(profile as unknown as User);
-        } else {
-          // Create profile
-          const newUser: Partial<User> = {
-            id: session.user.id,
-            email: session.user.email ?? '',
-            display_name: session.user.user_metadata?.full_name ?? session.user.email?.split('@')[0] ?? 'Player',
-            avatar_url: session.user.user_metadata?.avatar_url ?? null,
-            spotify_access_token: session.provider_token ?? null,
-            spotify_refresh_token: session.provider_refresh_token ?? null,
-            spotify_expires_at: session.expires_at ? new Date(session.expires_at * 1000).toISOString() : null,
-          };
-
-          await supabase.from('users').upsert(newUser as unknown as User);
-          setCurrentUser(newUser as unknown as User);
-        }
-      }
-    };
-
-    loadUser();
-
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (_event, session) => {
-      if (cancelled) return;
-      if (session?.user) {
-        // Update tokens when auth state changes
-        const updates: Record<string, unknown> = {
-          id: session.user.id,
-          email: session.user.email ?? '',
-          display_name: session.user.user_metadata?.full_name ?? session.user.email?.split('@')[0] ?? 'Player',
-          avatar_url: session.user.user_metadata?.avatar_url ?? null,
-        };
-
-        if (session.provider_token) {
-          updates.spotify_access_token = session.provider_token;
-          updates.spotify_refresh_token = session.provider_refresh_token ?? null;
-          updates.spotify_expires_at = session.expires_at
-            ? new Date(session.expires_at * 1000).toISOString()
-            : null;
-        }
-
-        await supabase.from('users').upsert(updates as unknown as User);
-        setCurrentUser(updates as unknown as User);
-      } else {
-        setCurrentUser(null);
-      }
-    });
-
-    return () => {
-      cancelled = true;
-      subscription.unsubscribe();
-    };
-  }, []);
+    const savedSession = getGuestSession();
+    if (savedSession) {
+      setCurrentPlayerName(savedSession.display_name);
+    }
+  }, [roomCode]);
 
   // Fetch room data
   const fetchRoom = useCallback(async () => {
@@ -143,13 +88,19 @@ export function useRoom(roomCode: string): UseRoomReturn {
         'postgres_changes',
         { event: '*', schema: 'public', table: 'players', filter: `room_id=eq.${room.id}` },
         () => {
-          // Re-fetch all players on any change
           fetchRoom();
         }
       )
       .on(
         'postgres_changes',
         { event: '*', schema: 'public', table: 'game_rounds', filter: `room_id=eq.${room.id}` },
+        () => {
+          fetchRoom();
+        }
+      )
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'room_songs', filter: `room_id=eq.${room.id}` },
         () => {
           fetchRoom();
         }
@@ -163,45 +114,66 @@ export function useRoom(roomCode: string): UseRoomReturn {
     };
   }, [room?.id, fetchRoom]);
 
-  const isHost = Boolean(currentUser?.id && room?.host_id === currentUser.id);
-  const hasSpotify = Boolean(currentUser?.spotify_access_token);
+  const isHost = Boolean(currentPlayerId && room?.host_id === currentPlayerId);
 
-  const joinRoom = useCallback(async () => {
-    if (!currentUser?.id) return;
-
+  const joinRoom = useCallback(async (displayName: string): Promise<Player | null> => {
     const res = await fetch(`/api/rooms/${roomCode}/join`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ user_id: currentUser.id }),
+      body: JSON.stringify({ display_name: displayName }),
     });
     const json = await res.json();
+
     if (!json.success) {
       setError(json.error);
-    } else {
-      await fetchRoom();
+      return null;
     }
-  }, [currentUser?.id, roomCode, fetchRoom]);
+
+    const player = json.data as Player;
+    setCurrentPlayerId(player.id);
+    setCurrentPlayerName(displayName);
+    setRoomPlayerId(roomCode, player.id);
+    await fetchRoom();
+    return player;
+  }, [roomCode, fetchRoom]);
 
   const toggleReady = useCallback(
     async (ready: boolean) => {
-      if (!currentUser?.id) return;
+      if (!currentPlayerId) return;
 
       await fetch(`/api/rooms/${roomCode}/ready`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ user_id: currentUser.id, is_ready: ready }),
+        body: JSON.stringify({ player_id: currentPlayerId, is_ready: ready }),
       });
     },
-    [currentUser?.id, roomCode]
+    [currentPlayerId, roomCode]
   );
 
+  const startSelection = useCallback(async (): Promise<boolean> => {
+    if (!currentPlayerId) return false;
+
+    const res = await fetch(`/api/rooms/${roomCode}/settings`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ host_id: currentPlayerId, status: 'selecting' }),
+    });
+    const json = await res.json();
+    if (!json.success) {
+      setError(json.error);
+      return false;
+    }
+    setRoom(json.data as unknown as Room);
+    return true;
+  }, [currentPlayerId, roomCode]);
+
   const startGame = useCallback(async () => {
-    if (!currentUser?.id) return null;
+    if (!currentPlayerId) return null;
 
     const res = await fetch(`/api/rooms/${roomCode}/start`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ host_id: currentUser.id }),
+      body: JSON.stringify({ host_player_id: currentPlayerId }),
     });
     const json = await res.json();
     if (!json.success) {
@@ -209,24 +181,23 @@ export function useRoom(roomCode: string): UseRoomReturn {
       return null;
     }
     return json.data;
-  }, [currentUser?.id, roomCode]);
+  }, [currentPlayerId, roomCode]);
 
   const updateSettings = useCallback(
     async (settings: Record<string, unknown>): Promise<boolean> => {
-      if (!currentUser?.id) return false;
+      if (!currentPlayerId) return false;
 
       try {
         const res = await fetch(`/api/rooms/${roomCode}/settings`, {
           method: 'PATCH',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ host_id: currentUser.id, ...settings }),
+          body: JSON.stringify({ host_id: currentPlayerId, ...settings }),
         });
         const json = await res.json();
         if (!json.success) {
           setError(json.error);
           return false;
         }
-        // Update local room state
         setRoom(json.data as unknown as Room);
         return true;
       } catch (e) {
@@ -234,19 +205,20 @@ export function useRoom(roomCode: string): UseRoomReturn {
         return false;
       }
     },
-    [currentUser?.id, roomCode]
+    [currentPlayerId, roomCode]
   );
 
   return {
     room,
     players,
-    currentUser,
+    currentPlayerId,
+    currentPlayerName,
     isHost,
     loading,
     error,
-    hasSpotify,
     joinRoom,
     toggleReady,
+    startSelection,
     startGame,
     updateSettings,
     refetch: fetchRoom,

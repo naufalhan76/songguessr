@@ -5,18 +5,18 @@ interface RouteContext {
   params: Promise<{ code: string }>;
 }
 
-// POST /api/rooms/[code]/ready — toggle player ready status
+// POST /api/rooms/[code]/ready — toggle player ready status (by player_id)
 export async function POST(request: NextRequest, context: RouteContext) {
   try {
     const { code } = await context.params;
     const supabase = createServiceClient();
     const body = await request.json().catch(() => ({}));
 
-    const userId = body.user_id as string | undefined;
+    const playerId = body.player_id as string | undefined;
     const isReady = body.is_ready as boolean | undefined;
 
-    if (!userId || isReady === undefined) {
-      return NextResponse.json({ success: false, error: 'user_id and is_ready are required' }, { status: 400 });
+    if (!playerId || isReady === undefined) {
+      return NextResponse.json({ success: false, error: 'player_id and is_ready are required' }, { status: 400 });
     }
 
     // Find the room
@@ -30,12 +30,12 @@ export async function POST(request: NextRequest, context: RouteContext) {
       return NextResponse.json({ success: false, error: 'Room not found' }, { status: 404 });
     }
 
-    // Update player ready status
+    // Update player ready status by player ID
     const { data: player, error } = await supabase
       .from('players')
       .update({ is_ready: isReady })
       .eq('room_id', room.id)
-      .eq('user_id', userId)
+      .eq('id', playerId)
       .select()
       .single();
 

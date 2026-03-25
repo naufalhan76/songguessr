@@ -17,7 +17,7 @@ export interface Room {
   code: string;
   room_name: string | null;
   host_id: string;
-  status: 'waiting' | 'active' | 'finished';
+  status: 'waiting' | 'selecting' | 'active' | 'finished';
   settings: RoomSettings;
   created_at: string;
   started_at: string | null;
@@ -30,12 +30,14 @@ export interface RoomSettings {
   max_players: number; // default 4
   allow_skips: boolean;
   point_system: 'speed' | 'correct_only';
+  selection_time: number; // minutes, default 5 (options: 5, 10, 15)
 }
 
 export interface Player {
   id: string;
   room_id: string;
-  user_id: string;
+  user_id: string | null; // nullable for guest players
+  display_name: string | null;
   score: number;
   is_ready: boolean;
   joined_at: string;
@@ -52,6 +54,14 @@ export interface Track {
   popularity: number;
   album_art_url: string;
   cached_at: string;
+}
+
+export interface RoomSong {
+  id: string;
+  room_id: string;
+  player_id: string;
+  track_id: string;
+  added_at: string;
 }
 
 export interface GameRound {
@@ -80,6 +90,9 @@ export type RoomEvent =
   | { type: 'player_left'; payload: { player_id: string } }
   | { type: 'player_ready'; payload: { player_id: string; is_ready: boolean } }
   | { type: 'room_started'; payload: { room_id: string } }
+  | { type: 'song_added'; payload: RoomSong & { track: Track } }
+  | { type: 'song_removed'; payload: { room_song_id: string } }
+  | { type: 'selection_started'; payload: { room_id: string; ends_at: string } }
   | { type: 'round_started'; payload: GameRound & { track: Track; options: Track[] } }
   | { type: 'round_ended'; payload: { round_id: string } }
   | { type: 'answer_submitted'; payload: PlayerAnswer }
@@ -97,27 +110,23 @@ export interface SpotifyTrack {
   popularity: number;
 }
 
-export interface SpotifyTopTracksResponse {
-  items: SpotifyTrack[];
+export interface SpotifySearchResult {
+  tracks: SpotifyTrack[];
+  total: number;
 }
 
-// OAuth flow types
-export interface SpotifyAuthState {
-  redirect_uri: string;
-  room_code?: string;
-}
-
-export interface SpotifyTokenResponse {
-  access_token: string;
-  refresh_token: string;
-  expires_in: number;
+// Guest session (stored in localStorage)
+export interface GuestSession {
+  id: string; // generated UUID for guest player identification
+  display_name: string;
+  created_at: string;
 }
 
 // Game state types
 export interface LobbyState {
   room: Room;
   players: Player[];
-  currentUser: User | null;
+  currentPlayerId: string | null;
   isHost: boolean;
 }
 
@@ -170,13 +179,18 @@ export type Database = {
       };
       players: {
         Row: Player;
-        Insert: Partial<Player> & { room_id: string; user_id: string };
+        Insert: Partial<Player> & { room_id: string };
         Update: Partial<Player>;
       };
       tracks: {
         Row: Track;
         Insert: Partial<Track> & { spotify_id: string; title: string; artists: string[]; album: string; duration_ms: number };
         Update: Partial<Track>;
+      };
+      room_songs: {
+        Row: RoomSong;
+        Insert: Partial<RoomSong> & { room_id: string; player_id: string; track_id: string };
+        Update: Partial<RoomSong>;
       };
       game_rounds: {
         Row: GameRound;
