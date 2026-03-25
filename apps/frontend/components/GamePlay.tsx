@@ -169,6 +169,23 @@ export default function GamePlay({ room, players, currentPlayerId, roomCode, tra
     }
   };
 
+  const handleLeaveRoom = async () => {
+    if (!currentPlayerId) {
+      window.location.href = '/';
+      return;
+    }
+    try {
+      await fetch(`/api/rooms/${roomCode}/leave`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ player_id: currentPlayerId }),
+      });
+    } catch (e) {
+      console.error('Failed to leave room', e);
+    }
+    window.location.href = '/';
+  };
+
   // Loading state
   if (rounds.length === 0 || !currentRound || !correctTrack) {
     return (
@@ -198,10 +215,17 @@ export default function GamePlay({ room, players, currentPlayerId, roomCode, tra
             Room {roomCode}
           </Chip>
         </div>
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-4">
           <div className={`font-mono text-3xl font-bold ${timerColor} transition-colors`}>
             {timeRemaining}s
           </div>
+          <button
+            type="button"
+            onClick={handleLeaveRoom}
+            className="inline-flex h-10 items-center justify-center rounded-xl bg-white/10 px-4 text-sm font-medium text-white transition hover:bg-red-500/20 hover:text-red-300"
+          >
+            Leave room
+          </button>
         </div>
       </header>
 

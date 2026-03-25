@@ -99,7 +99,16 @@ export default function Leaderboard({ room, players, currentUserId, roomCode, tr
     fetchLeaderboard();
   }, [room.id, players, tracks]);
 
-  const handlePlayAgain = () => {
+  const handleLeaveRoom = async () => {
+    try {
+      await fetch(`/api/rooms/${roomCode}/leave`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ player_id: currentUserId }),
+      });
+    } catch (e) {
+      console.error('Failed to leave room', e);
+    }
     window.location.href = '/';
   };
 
@@ -233,8 +242,8 @@ export default function Leaderboard({ room, players, currentUserId, roomCode, tr
 
       {/* Actions */}
       <div className="flex flex-col items-center gap-3 border-t border-white/10 py-8">
-        <Button variant="primary" size="lg" className="bg-white text-black" onPress={handlePlayAgain}>
-          Play again
+        <Button variant="primary" size="lg" className="bg-white text-black" onPress={handleLeaveRoom}>
+          Leave Room / Play again
         </Button>
         <p className="text-sm text-white/45">Create a new room and start another round</p>
       </div>

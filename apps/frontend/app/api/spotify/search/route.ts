@@ -20,6 +20,14 @@ export async function GET(request: NextRequest) {
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
     console.error('GET /api/spotify/search error', message);
+    
+    if (message.includes('429') || message.includes('Rate limit') || message.includes('Too Many Requests')) {
+      return NextResponse.json(
+        { success: false, error: 'Talu banyak pencarian. Tunggu sebentar ya!' },
+        { status: 429 }
+      );
+    }
+
     return NextResponse.json(
       { success: false, error: `Failed to search Spotify: ${message}` },
       { status: 500 }

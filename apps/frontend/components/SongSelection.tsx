@@ -43,6 +43,7 @@ export default function SongSelection({
 }: SongSelectionProps) {
   const [searchQuery, setSearchQuery] = useState('');
   const [searchResults, setSearchResults] = useState<SearchResult[]>([]);
+  const [searchError, setSearchError] = useState<string | null>(null);
   const [isSearching, setIsSearching] = useState(false);
   const [roomSongs, setRoomSongs] = useState<RoomSongEntry[]>([]);
   const [isAdding, setIsAdding] = useState<string | null>(null); // spotify_id being added
@@ -131,14 +132,21 @@ export default function SongSelection({
 
     searchTimeoutRef.current = window.setTimeout(async () => {
       setIsSearching(true);
+      setSearchError(null);
       try {
         const res = await fetch(`/api/spotify/search?q=${encodeURIComponent(searchQuery.trim())}&limit=10`);
         const json = await res.json();
         if (json.success) {
           setSearchResults(json.data);
+          setSearchError(null);
+        } else {
+          setSearchResults([]);
+          setSearchError(json.error || 'Gagal mencari lagu.');
         }
       } catch (e) {
         console.error('Search failed', e);
+        setSearchError('Connection failed.');
+        setSearchResults([]);
       }
       setIsSearching(false);
     }, 800);
@@ -221,6 +229,23 @@ export default function SongSelection({
     }
   };
 
+  const handleLeaveRoom = async () => {
+    if (!currentPlayerId) {
+      window.location.href = '/';
+      return;
+    }
+    try {
+      await fetch(`/api/rooms/${roomCode}/leave`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ player_id: currentPlayerId }),
+      });
+    } catch (e) {
+      console.error('Failed to leave room', e);
+    }
+    window.location.href = '/';
+  };
+
   const formatTime = (seconds: number) => {
     const m = Math.floor(seconds / 60);
     const s = seconds % 60;
@@ -255,6 +280,13 @@ export default function SongSelection({
           <div className={`font-mono text-3xl font-bold ${timerColor} transition-colors`}>
             {formatTime(timeRemaining)}
           </div>
+          <button
+            type="button"
+            onClick={handleLeaveRoom}
+            className="inline-flex h-10 items-center justify-center rounded-xl bg-white/10 px-4 text-sm font-medium text-white transition hover:bg-red-500/20 hover:text-red-300"
+          >
+            Leave room
+          </button>
         </div>
       </header>
 
@@ -290,6 +322,12 @@ export default function SongSelection({
           {myQuotaFilled && (
             <div className="rounded-2xl border border-emerald-400/20 bg-emerald-400/10 p-4 text-center text-sm text-emerald-300">
               ✓ You&#39;ve added all {songsPerPlayer} songs! Waiting for other players...
+            </div>
+          )}
+
+          {searchError && (
+            <div className="rounded-2xl border border-red-400/20 bg-red-400/10 p-4 text-center text-sm text-red-300">
+              {searchError}
             </div>
           )}
 
