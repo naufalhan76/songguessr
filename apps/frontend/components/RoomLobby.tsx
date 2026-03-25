@@ -171,11 +171,15 @@ export default function RoomLobby({ roomCode, onSelectionStarted, onPlayerIdSet 
       return;
     }
     
+    // Broadcast to other clients
     lobbyChannelRef.current?.send({
       type: 'broadcast',
       event: 'start-selection-countdown',
       payload: {},
     });
+
+    // Also start locally — Supabase broadcast does NOT echo back to the sender
+    setCountdown(5);
   };
 
   const handleShareLink = async () => {
