@@ -8,7 +8,7 @@ interface AudioPlayerProps {
   youtubeId?: string | null;
   autoPlay?: boolean;
   onEnded?: () => void;
-  maxDuration?: number; // in seconds, default 30
+  maxDuration?: number;
   durationMs?: number;
   startRatio?: number;
 }
@@ -27,13 +27,14 @@ export default function AudioPlayer({
   const animRef = useRef<number>(0);
   const previewStartRef = useRef(0);
   const hasSeekedRef = useRef(false);
-  
+  const autoplayCheckRef = useRef<number | null>(null);
+
   const [isPlaying, setIsPlaying] = useState(false);
   const [progress, setProgress] = useState(0);
   const [currentTime, setCurrentTime] = useState(0);
   const [isYoutubeReady, setIsYoutubeReady] = useState(false);
+  const [autoplayBlocked, setAutoplayBlocked] = useState(false);
 
-  // Force YouTube playback to avoid Spotify Premium errors. Can be disabled later for hybrid mode.
   const forceYoutube = true;
   const isYoutubeMode = forceYoutube ? !!youtubeId : (!src && !!youtubeId);
 
@@ -46,10 +47,24 @@ export default function AudioPlayer({
     return Math.min(rawStart, latestSafeStart);
   }, [durationMs, isYoutubeMode, maxDuration, startRatio]);
 
-  // Cleanup on unmount
+  const clearAutoplayCheck = useCallback(() => {
+    if (autoplayCheckRef.current) {
+      window.clearTimeout(autoplayCheckRef.current);
+      autoplayCheckRef.current = null;
+    }
+  }, []);
+
+  const scheduleAutoplayCheck = useCallback(() => {
+    clearAutoplayCheck();
+    autoplayCheckRef.current = window.setTimeout(() => {
+      setAutoplayBlocked((prev) => (isPlaying ? false : prev || autoPlay));
+    }, 1400);
+  }, [autoPlay, clearAutoplayCheck, isPlaying]);
+
   useEffect(() => {
     return () => {
       cancelAnimationFrame(animRef.current);
+      clearAutoplayCheck();
       if (audioRef.current) {
         audioRef.current.pause();
         audioRef.current.src = '';
@@ -57,10 +72,12 @@ export default function AudioPlayer({
       if (ytPlayerRef.current) {
         try {
           ytPlayerRef.current.stopVideo();
-        } catch { /* ignore */ }
+        } catch {
+          // ignore
+        }
       }
     };
-  }, []);
+  }, [clearAutoplayCheck]);
 
   const updateProgress = useCallback(() => {
     let time = 0;
@@ -69,8 +86,10 @@ export default function AudioPlayer({
     if (isYoutubeMode && ytPlayerRef.current) {
       try {
         time = ytPlayerRef.current.getCurrentTime() || 0;
-        playing = ytPlayerRef.current.getPlayerState() === 1; // 1 = playing
-      } catch { /* ignore */ }
+        playing = ytPlayerRef.current.getPlayerState() === 1;
+      } catch {
+        // ignore
+      }
     } else if (!isYoutubeMode && audioRef.current) {
       time = audioRef.current.currentTime;
       playing = !audioRef.current.paused;
@@ -83,9 +102,13 @@ export default function AudioPlayer({
     if (elapsedTime >= maxDuration) {
       setIsPlaying(false);
       if (isYoutubeMode && ytPlayerRef.current) {
-         try { ytPlayerRef.current.pauseVideo(); } catch { /* ignore */ }
+        try {
+          ytPlayerRef.current.pauseVideo();
+        } catch {
+          // ignore
+        }
       } else if (audioRef.current) {
-         audioRef.current.pause();
+        audioRef.current.pause();
       }
       onEnded?.();
       return;
@@ -94,61 +117,100 @@ export default function AudioPlayer({
     if (playing) {
       animRef.current = requestAnimationFrame(updateProgress);
     }
-  }, [maxDuration, onEnded, isYoutubeMode]);
+  }, [isYoutubeMode, maxDuration, onEnded]);
 
-  // Handle native audio playback
   useEffect(() => {
     if (isYoutubeMode) return;
-    
+
     const audio = new Audio(src || '');
     audioRef.current = audio;
 
-    audio.addEventListener('ended', () => {
+    const handleEnded = () => {
       setIsPlaying(false);
       onEnded?.();
-    });
+    };
 
-    audio.addEventListener('play', () => {
+    const handlePlay = () => {
       setIsPlaying(true);
+      setAutoplayBlocked(false);
       requestAnimationFrame(updateProgress);
-    });
-    
-    audio.addEventListener('pause', () => setIsPlaying(false));
+    };
+
+    const handlePause = () => {
+      setIsPlaying(false);
+    };
+
+    audio.addEventListener('ended', handleEnded);
+    audio.addEventListener('play', handlePlay);
+    audio.addEventListener('pause', handlePause);
 
     if (autoPlay && src) {
-      audio.play().catch(() => { /* Autoplay blocked */ });
+      audio.play().catch(() => {
+        setAutoplayBlocked(true);
+      });
+      scheduleAutoplayCheck();
     }
 
     return () => {
+      clearAutoplayCheck();
       cancelAnimationFrame(animRef.current);
+      audio.removeEventListener('ended', handleEnded);
+      audio.removeEventListener('play', handlePlay);
+      audio.removeEventListener('pause', handlePause);
       audio.pause();
       audio.src = '';
     };
-  }, [src, autoPlay, onEnded, isYoutubeMode, updateProgress]);
+  }, [autoPlay, clearAutoplayCheck, isYoutubeMode, onEnded, scheduleAutoplayCheck, src, updateProgress]);
 
-  // Restart frame loop when playing state changes (for youtube primarily)
   useEffect(() => {
     if (isPlaying) {
       animRef.current = requestAnimationFrame(updateProgress);
     } else {
       cancelAnimationFrame(animRef.current);
     }
-    return () => cancelAnimationFrame(animRef.current);
+
+    return () => {
+      cancelAnimationFrame(animRef.current);
+    };
   }, [isPlaying, updateProgress]);
+
+  const startPlayback = useCallback(() => {
+    setAutoplayBlocked(false);
+
+    if (isYoutubeMode && ytPlayerRef.current) {
+      try {
+        ytPlayerRef.current.playVideo();
+      } catch {
+        setAutoplayBlocked(true);
+      }
+      return;
+    }
+
+    if (!isYoutubeMode && audioRef.current) {
+      audioRef.current.play().catch(() => {
+        setAutoplayBlocked(true);
+      });
+    }
+  }, [isYoutubeMode]);
 
   const togglePlay = () => {
     if (isYoutubeMode && ytPlayerRef.current) {
       try {
         const state = ytPlayerRef.current.getPlayerState();
-        if (state === 1) { // playing
+        if (state === 1) {
           ytPlayerRef.current.pauseVideo();
         } else {
-          ytPlayerRef.current.playVideo();
+          startPlayback();
         }
-      } catch { /* ignore */ }
-    } else if (!isYoutubeMode && audioRef.current) {
+      } catch {
+        // ignore
+      }
+      return;
+    }
+
+    if (audioRef.current) {
       if (audioRef.current.paused) {
-        audioRef.current.play().catch(() => { /* ignore */ });
+        startPlayback();
       } else {
         audioRef.current.pause();
       }
@@ -179,27 +241,37 @@ export default function AudioPlayer({
       }
 
       if (autoPlay) {
-        player.playVideo();
+        try {
+          player.playVideo();
+        } catch {
+          setAutoplayBlocked(true);
+        }
       }
     };
 
     syncPreviewStart();
     window.setTimeout(syncPreviewStart, 350);
+    if (autoPlay) {
+      scheduleAutoplayCheck();
+    }
   };
 
   const onYoutubeStateChange = (event: YouTubeEvent) => {
-    // 1 = playing, 2 = paused, 0 = ended
     if (event.data === 1) {
+      clearAutoplayCheck();
+      setAutoplayBlocked(false);
       setIsPlaying(true);
       requestAnimationFrame(updateProgress);
     } else if (event.data === 2 || event.data === 0) {
       setIsPlaying(false);
-      if (event.data === 0) onEnded?.();
+      if (event.data === 0) {
+        onEnded?.();
+      }
     }
   };
 
   return (
-    <div className="w-full space-y-3">
+    <div className="relative w-full space-y-3">
       {isYoutubeMode && (
         <div className="pointer-events-none absolute opacity-0">
           <YouTube
@@ -209,16 +281,32 @@ export default function AudioPlayer({
               width: '10',
               playerVars: {
                 autoplay: autoPlay ? 1 : 0,
-              controls: 0,
-              disablekb: 1,
-              fs: 0,
-              playsinline: 1,
+                controls: 0,
+                disablekb: 1,
+                fs: 0,
+                playsinline: 1,
                 start: getPreviewStartSeconds(),
               },
             }}
             onReady={onYoutubeReady}
             onStateChange={onYoutubeStateChange}
           />
+        </div>
+      )}
+
+      {autoplayBlocked && (
+        <div className="rounded-2xl border border-amber-400/20 bg-amber-400/10 p-4 text-center">
+          <div className="text-sm font-semibold text-white">Tap once to start audio</div>
+          <p className="mt-1 text-xs leading-5 text-amber-100/75">
+            Some mobile browsers block autoplay with sound. One tap will start the music.
+          </p>
+          <button
+            type="button"
+            onClick={startPlayback}
+            className="mt-3 inline-flex h-10 items-center justify-center rounded-xl bg-amber-300 px-4 text-sm font-semibold text-black transition hover:bg-amber-200"
+          >
+            Start sound
+          </button>
         </div>
       )}
 
@@ -248,8 +336,8 @@ export default function AudioPlayer({
           </div>
           <div className="flex justify-between text-xs text-white/40">
             <span>{formatTime(currentTime)}</span>
-            <div className="flex gap-2 items-center">
-              {isYoutubeMode && <span className="text-[10px] font-bold text-red-500 uppercase">YouTube</span>}
+            <div className="flex items-center gap-2">
+              {isYoutubeMode && <span className="text-[10px] font-bold uppercase text-red-500">YouTube</span>}
               <span>{formatTime(maxDuration)}</span>
             </div>
           </div>

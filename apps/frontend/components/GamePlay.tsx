@@ -359,6 +359,9 @@ export default function GamePlay({ room, players, currentPlayerId, roomCode, tra
                 Music will autoplay as soon as the match starts, and the preview jumps straight into the song.
                 Biar nggak kelewatan, gedein volume atau pakai headset dulu sebelum countdown habis.
               </p>
+              <p className="mt-2 text-xs leading-5 text-amber-100/60 sm:text-sm">
+                On some phones, the browser may still ask for one tap before sound can start.
+              </p>
             </div>
 
             <div className="grid gap-3 sm:grid-cols-2">
