@@ -17,9 +17,11 @@ interface RoomClientProps {
 export default function RoomClient({ roomCode }: RoomClientProps) {
   const [phase, setPhase] = useState<GamePhase>('lobby');
   const [tracks, setTracks] = useState<Track[]>([]);
+  const [distractorTracks, setDistractorTracks] = useState<Array<{ id: string; title: string; artists: string[] }>>([]);
   const [room, setRoom] = useState<Room | null>(null);
   const [players, setPlayers] = useState<Player[]>([]);
   const [currentPlayerId, setCurrentPlayerId] = useState<string>('');
+  const [leaveNotification, setLeaveNotification] = useState<string | null>(null);
 
   // Restore player ID from localStorage
   useEffect(() => {
@@ -108,10 +110,13 @@ export default function RoomClient({ roomCode }: RoomClientProps) {
     setPhase('selecting');
   }, [fetchRoomData]);
 
-  const handleGameStarted = useCallback(async (gameTracks: unknown[]) => {
+  const handleGameStarted = useCallback(async (gameTracks: unknown[], gameDistractors?: unknown[]) => {
     await fetchRoomData();
     if (gameTracks && Array.isArray(gameTracks) && gameTracks.length > 0) {
       setTracks(gameTracks as Track[]);
+    }
+    if (gameDistractors && Array.isArray(gameDistractors)) {
+      setDistractorTracks(gameDistractors as Array<{ id: string; title: string; artists: string[] }>);
     }
     setPhase('playing');
   }, [fetchRoomData]);
@@ -127,6 +132,47 @@ export default function RoomClient({ roomCode }: RoomClientProps) {
     await fetchRoomData();
     setPhase('finished');
   }, [room?.id, fetchRoomData]);
+
+  // Real-time player leave detection (must be after handleGameEnd declaration)
+  useEffect(() => {
+    if (!room?.id) return;
+
+    const playerChannel = supabase
+      .channel(`player-leave:${room.id}`)
+      .on(
+        'postgres_changes',
+        { event: 'DELETE', schema: 'public', table: 'players', filter: `room_id=eq.${room.id}` },
+        (payload) => {
+          const leavingPlayer = payload.old as unknown as Player;
+          const name = leavingPlayer?.display_name || 'A player';
+
+          // Show notification
+          setLeaveNotification(`${name} telah meninggalkan pertandingan`);
+          setTimeout(() => setLeaveNotification(null), 4000);
+
+          // Refresh player list
+          fetchRoomData().then(() => {
+            // Check if only 1 player remains during active game — auto-end
+            if (phase === 'playing') {
+              supabase
+                .from('players')
+                .select('id')
+                .eq('room_id', room.id)
+                .then(({ data: remaining }) => {
+                  if (remaining && remaining.length <= 1) {
+                    handleGameEnd();
+                  }
+                });
+            }
+          });
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(playerChannel);
+    };
+  }, [room?.id, phase, fetchRoomData, handleGameEnd]);
 
   // Update currentPlayerId when it changes
   const handlePlayerIdSet = useCallback((playerId: string) => {
@@ -157,14 +203,22 @@ export default function RoomClient({ roomCode }: RoomClientProps) {
 
   if (phase === 'playing' && room && currentPlayerId) {
     return (
-      <GamePlay
-        room={room}
-        players={players}
-        currentPlayerId={currentPlayerId}
-        roomCode={roomCode}
-        tracks={tracks}
-        onGameEnd={handleGameEnd}
-      />
+      <>
+        {leaveNotification && (
+          <div className="fixed top-4 left-1/2 z-50 -translate-x-1/2 animate-pulse rounded-xl border border-amber-500/30 bg-amber-500/10 px-5 py-3 text-sm font-medium text-amber-300 shadow-lg backdrop-blur-sm">
+            {leaveNotification}
+          </div>
+        )}
+        <GamePlay
+          room={room}
+          players={players}
+          currentPlayerId={currentPlayerId}
+          roomCode={roomCode}
+          tracks={tracks}
+          distractorTracks={distractorTracks}
+          onGameEnd={handleGameEnd}
+        />
+      </>
     );
   }
 

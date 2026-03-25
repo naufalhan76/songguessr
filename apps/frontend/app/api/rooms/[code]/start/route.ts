@@ -135,12 +135,26 @@ export async function POST(request: NextRequest, context: RouteContext) {
       .update({ status: 'active', started_at: new Date().toISOString() })
       .eq('id', room.id);
 
+    // Fetch extra distractor tracks from Top 100 Indonesia for quiz options
+    let distractorTracks: Array<{ id: string; title: string; artists: string[] }> = [];
+    try {
+      const top100 = await getTop100Indonesia();
+      const gameTrackTitles = new Set(existingTracks.map((t) => t.title.toLowerCase()));
+      distractorTracks = top100
+        .filter((t) => !gameTrackTitles.has(t.title.toLowerCase()))
+        .slice(0, 20)
+        .map((t) => ({ id: `distractor_${t.spotify_id}`, title: t.title, artists: t.artists }));
+    } catch (e) {
+      console.error('Failed to fetch distractor tracks', e);
+    }
+
     return NextResponse.json({
       success: true,
       data: {
         room_id: room.id,
         total_rounds: roundTracks.length,
         tracks: existingTracks, // send all tracks (for answer options)
+        distractor_tracks: distractorTracks, // extra fake options from Top 100
       },
     });
   } catch (err) {

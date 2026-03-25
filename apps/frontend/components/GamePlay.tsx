@@ -13,6 +13,7 @@ interface GamePlayProps {
   currentPlayerId: string;
   roomCode: string;
   tracks: Track[];
+  distractorTracks?: Array<{ id: string; title: string; artists: string[] }>;
   onGameEnd: () => void;
 }
 
@@ -22,7 +23,7 @@ interface RoundData {
   track_id: string;
 }
 
-export default function GamePlay({ room, players, currentPlayerId, roomCode, tracks, onGameEnd }: GamePlayProps) {
+export default function GamePlay({ room, players, currentPlayerId, roomCode, tracks, distractorTracks = [], onGameEnd }: GamePlayProps) {
   const [rounds, setRounds] = useState<RoundData[]>([]);
   const [currentRoundIndex, setCurrentRoundIndex] = useState(0);
   const [timeRemaining, setTimeRemaining] = useState(room.settings.time_per_round);
@@ -55,19 +56,46 @@ export default function GamePlay({ room, players, currentPlayerId, roomCode, tra
   const currentRound = rounds[currentRoundIndex];
   const correctTrack = currentRound ? tracks.find((t) => t.id === currentRound.track_id) : null;
 
-  // Generate 4 options for current round (1 correct + 3 random distractors)
+  // Generate 4 options: 1 correct + max 1 from game tracks + rest from external distractors
   const getOptions = useCallback((): Track[] => {
     if (!correctTrack) return [];
 
-    const others = tracks.filter((t) => t.id !== correctTrack.id);
-    // Shuffle others
-    for (let i = others.length - 1; i > 0; i--) {
+    // Get other game tracks (max 1 as distractor)
+    const otherGameTracks = tracks.filter((t) => t.id !== correctTrack.id);
+    for (let i = otherGameTracks.length - 1; i > 0; i--) {
       const j = Math.floor(Math.random() * (i + 1));
-      [others[i], others[j]] = [others[j], others[i]];
+      [otherGameTracks[i], otherGameTracks[j]] = [otherGameTracks[j], otherGameTracks[i]];
+    }
+    const gameDistractors = otherGameTracks.slice(0, 1); // Max 1 game track as distractor
+
+    // Fill remaining slots with external distractors from Top 100
+    const neededExternal = 3 - gameDistractors.length;
+    const shuffledExternal = [...distractorTracks];
+    for (let i = shuffledExternal.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [shuffledExternal[i], shuffledExternal[j]] = [shuffledExternal[j], shuffledExternal[i]];
+    }
+    const externalPicks = shuffledExternal.slice(0, neededExternal).map((d) => ({
+      ...d,
+      album: '',
+      album_art_url: '',
+      preview_url: null,
+      youtube_id: null,
+      duration_ms: 0,
+      popularity: 0,
+      spotify_id: d.id,
+      cached_at: '',
+      score: 0,
+    })) as unknown as Track[];
+
+    // If not enough external distractors, fill from game tracks
+    let allDistractors = [...gameDistractors, ...externalPicks];
+    if (allDistractors.length < 3) {
+      const moreGame = otherGameTracks.slice(1, 1 + (3 - allDistractors.length));
+      allDistractors = [...allDistractors, ...moreGame];
     }
 
-    const distractors = others.slice(0, 3);
-    const options = [correctTrack, ...distractors];
+    const options = [correctTrack, ...allDistractors.slice(0, 3)];
 
     // Shuffle options
     for (let i = options.length - 1; i > 0; i--) {
@@ -76,7 +104,7 @@ export default function GamePlay({ room, players, currentPlayerId, roomCode, tra
     }
 
     return options;
-  }, [correctTrack, tracks]);
+  }, [correctTrack, tracks, distractorTracks]);
 
   const [options, setOptions] = useState<Track[]>([]);
 

@@ -11,7 +11,7 @@ interface SongSelectionProps {
   players: Player[];
   currentPlayerId: string;
   roomCode: string;
-  onGameStarted: (tracks: unknown[]) => void;
+  onGameStarted: (tracks: unknown[], distractors?: unknown[]) => void;
 }
 
 interface RoomSongEntry {
@@ -221,7 +221,7 @@ export default function SongSelection({
       });
       const json = await res.json();
       if (json.success) {
-        onGameStarted(json.data.tracks ?? []);
+        onGameStarted(json.data.tracks ?? [], json.data.distractor_tracks ?? []);
       } else {
         alert(json.error);
         setIsStartingGame(false);
