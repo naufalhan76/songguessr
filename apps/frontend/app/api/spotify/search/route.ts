@@ -18,9 +18,10 @@ export async function GET(request: NextRequest) {
 
     return NextResponse.json({ success: true, data: results });
   } catch (err) {
-    console.error('GET /api/spotify/search error', err);
+    const message = err instanceof Error ? err.message : String(err);
+    console.error('GET /api/spotify/search error', message);
     return NextResponse.json(
-      { success: false, error: 'Failed to search Spotify' },
+      { success: false, error: `Failed to search Spotify: ${message}` },
       { status: 500 }
     );
   }
