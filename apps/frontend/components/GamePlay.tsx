@@ -434,6 +434,7 @@ export default function GamePlay({
 
     setSelectedAnswer(trackId);
     setIsSubmitting(true);
+    setShowingResults(true);
 
     const timeTakenMs = Date.now() - roundStartTimeRef.current;
 
@@ -473,7 +474,6 @@ export default function GamePlay({
     }
 
     setIsSubmitting(false);
-    setShowingResults(true);
   };
 
   const handleLeaveRoom = async () => {
@@ -695,6 +695,9 @@ export default function GamePlay({
             } else if (showWrongHighlight) {
               borderColor = 'border-red-400/50';
               bgColor = 'bg-red-400/10';
+            } else if (isSelected && isSubmitting) {
+              borderColor = 'border-violet-400/50';
+              bgColor = 'bg-violet-400/10';
             } else if (isSelected) {
               borderColor = 'border-white/30';
               bgColor = 'bg-white/10';
@@ -728,6 +731,11 @@ export default function GamePlay({
                     Wrong
                   </Chip>
                 )}
+                {isSelected && isSubmitting && (
+                  <Chip variant="soft" className="shrink-0 border-violet-400/20 bg-violet-400/10 text-violet-300">
+                    Locked in
+                  </Chip>
+                )}
               </motion.button>
             );
           })}
@@ -735,6 +743,28 @@ export default function GamePlay({
       </div>
 
       <AnimatePresence>
+        {isSubmitting && selectedAnswer && !answerResult && (
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -10 }}
+            className="fixed inset-x-0 bottom-6 z-50 flex justify-center px-6"
+          >
+            <Card className="border border-violet-400/30 bg-violet-400/10 shadow-[0_20px_80px_rgba(0,0,0,0.5)]">
+              <Card.Content className="flex items-center gap-4 px-6 py-4">
+                <div className="grid h-12 w-12 place-items-center rounded-full bg-violet-400/20 text-violet-300">
+                  <div className="h-5 w-5 animate-spin rounded-full border-2 border-violet-200/25 border-t-violet-200" />
+                </div>
+                <div>
+                  <div className="font-semibold text-white">Jawaban terkunci</div>
+                  <div className="text-sm text-white/55">
+                    Lagi cek jawaban kamu ke server...
+                  </div>
+                </div>
+              </Card.Content>
+            </Card>
+          </motion.div>
+        )}
         {answerResult && showingResults && !isRoundComplete && (
           <motion.div
             initial={{ opacity: 0, y: 20 }}
