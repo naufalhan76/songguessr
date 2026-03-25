@@ -30,6 +30,7 @@ interface SearchResult {
   album_art_url: string;
   preview_url: string | null;
   has_preview: boolean;
+  youtube_id?: string;
   duration_ms: number;
   popularity: number;
 }
@@ -135,7 +136,7 @@ export default function SongSelection({
       setIsSearching(true);
       setSearchError(null);
       try {
-        const res = await fetch(`/api/spotify/search?q=${encodeURIComponent(searchQuery.trim())}&limit=10`);
+        const res = await fetch(`/api/youtube/search?q=${encodeURIComponent(searchQuery.trim())}&limit=10`);
         const json = await res.json();
         if (json.success) {
           setSearchResults(json.data);
@@ -158,7 +159,7 @@ export default function SongSelection({
   }, [searchQuery]);
 
   const handleAddSong = async (track: SearchResult) => {
-    if (isAdding || myQuotaFilled || !track.has_preview) return;
+    if (isAdding || myQuotaFilled) return;
 
     setIsAdding(track.spotify_id);
     try {
@@ -174,6 +175,7 @@ export default function SongSelection({
             album: track.album,
             album_art_url: track.album_art_url,
             preview_url: track.preview_url,
+            youtube_id: track.youtube_id || null,
             duration_ms: track.duration_ms,
             popularity: track.popularity,
           },

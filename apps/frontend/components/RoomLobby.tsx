@@ -648,19 +648,24 @@ export default function RoomLobby({ roomCode, onSelectionStarted, onPlayerIdSet 
                 </div>
               </button>
 
-              <Button
-                variant="primary"
-                size="lg"
-                className="w-full bg-white text-black"
-                onPress={handleStartSelection}
-                isDisabled={!canStartSelection || countdown !== null}
+              <button
+                type="button"
+                onClick={handleStartSelection}
+                disabled={!canStartSelection || countdown !== null || !isHost}
+                className={`w-full rounded-2xl py-4 text-base font-bold tracking-tight transition-all duration-200 ${
+                  countdown !== null
+                    ? 'animate-pulse bg-emerald-500 text-white shadow-[0_0_30px_rgba(52,211,153,0.4)]'
+                    : canStartSelection && isHost
+                      ? 'bg-white text-black shadow-lg shadow-white/10 hover:scale-[1.02] hover:shadow-white/20 active:scale-[0.98]'
+                      : 'bg-white/10 text-white/40 cursor-not-allowed'
+                }`}
               >
                 {countdown !== null
-                  ? 'Starting...'
+                  ? '✦ Starting...'
                   : isHost
-                    ? 'Start Song Selection'
+                    ? '▶ Start Song Selection'
                     : 'Waiting for host'}
-              </Button>
+              </button>
 
               {isHost && !allPlayersReady && (
                 <p className="text-center text-sm text-white/45">

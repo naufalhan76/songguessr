@@ -70,6 +70,7 @@ export async function POST(request: NextRequest, context: RouteContext) {
       album: string;
       album_art_url: string;
       preview_url: string;
+      youtube_id?: string;
       duration_ms: number;
       popularity: number;
     };
@@ -81,10 +82,11 @@ export async function POST(request: NextRequest, context: RouteContext) {
       );
     }
 
-    let youtubeId = null;
-    if (!spotifyTrack.preview_url) {
+    // Use youtube_id from the request if provided, otherwise search for it
+    let youtubeId = spotifyTrack.youtube_id || null;
+    if (!youtubeId && !spotifyTrack.preview_url) {
       try {
-        const query = `${spotifyTrack.artists.join(' ')} ${spotifyTrack.title} audiohq`;
+        const query = `${spotifyTrack.artists.join(' ')} ${spotifyTrack.title} audio`;
         const video = await YouTube.searchOne(query, 'video', true);
         if (video && video.id) {
           youtubeId = video.id;
