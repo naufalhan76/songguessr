@@ -34,8 +34,14 @@ export default function GamePlay({ room, players, currentPlayerId, roomCode, tra
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [roundScores, setRoundScores] = useState<Record<string, number>>({});
   const [showingResults, setShowingResults] = useState(false);
+  const [syncedPlayerIds, setSyncedPlayerIds] = useState<string[]>([]);
+  const [scheduledStartAt, setScheduledStartAt] = useState<string | null>(null);
+  const [syncNow, setSyncNow] = useState(() => Date.now());
   const timerRef = useRef<number | null>(null);
   const roundStartTimeRef = useRef<number>(Date.now());
+  const syncChannelRef = useRef<ReturnType<typeof supabase.channel> | null>(null);
+  const syncStartedRef = useRef(false);
+  const isHost = room.host_id === currentPlayerId;
 
   // Fetch game rounds
   useEffect(() => {
@@ -55,6 +61,19 @@ export default function GamePlay({ room, players, currentPlayerId, roomCode, tra
 
   const currentRound = rounds[currentRoundIndex];
   const correctTrack = currentRound ? tracks.find((t) => t.id === currentRound.track_id) : null;
+  const isClientLoaded = rounds.length > 0 && tracks.length > 0;
+  const allPlayersSynced = players.length > 0 && players.every((player) => syncedPlayerIds.includes(player.id));
+  const scheduledStartMs = scheduledStartAt ? new Date(scheduledStartAt).getTime() : null;
+  const hasMatchStarted = scheduledStartMs !== null && syncNow >= scheduledStartMs;
+  const syncCountdown = scheduledStartMs === null ? null : Math.max(0, Math.ceil((scheduledStartMs - syncNow) / 1000));
+
+  const markPlayerSynced = useCallback((playerId: string) => {
+    setSyncedPlayerIds((prev) => (
+      prev.includes(playerId)
+        ? prev
+        : [...prev, playerId]
+    ));
+  }, []);
 
   // Generate 4 options: 1 correct + max 1 from game tracks + rest from external distractors
   const getOptions = useCallback((): Track[] => {
@@ -108,9 +127,100 @@ export default function GamePlay({ room, players, currentPlayerId, roomCode, tra
 
   const [options, setOptions] = useState<Track[]>([]);
 
+  useEffect(() => {
+    if (!room?.id || !currentPlayerId) return;
+
+    const channel = supabase
+      .channel(`match-sync:${room.id}`)
+      .on('broadcast', { event: 'player-ready' }, ({ payload }) => {
+        const playerId = typeof payload?.playerId === 'string' ? payload.playerId : null;
+        if (playerId) {
+          markPlayerSynced(playerId);
+        }
+      })
+      .on('broadcast', { event: 'match-start' }, ({ payload }) => {
+        const startsAt = typeof payload?.startsAt === 'string' ? payload.startsAt : null;
+        if (startsAt) {
+          syncStartedRef.current = true;
+          setScheduledStartAt((prev) => prev ?? startsAt);
+        }
+      })
+      .subscribe();
+
+    syncChannelRef.current = channel;
+
+    return () => {
+      supabase.removeChannel(channel);
+      syncChannelRef.current = null;
+      syncStartedRef.current = false;
+    };
+  }, [room?.id, currentPlayerId, markPlayerSynced]);
+
+  useEffect(() => {
+    if (!currentPlayerId || !isClientLoaded || scheduledStartAt) return;
+
+    const sendReady = () => {
+      markPlayerSynced(currentPlayerId);
+      syncChannelRef.current?.send({
+        type: 'broadcast',
+        event: 'player-ready',
+        payload: { playerId: currentPlayerId },
+      });
+    };
+
+    sendReady();
+    const interval = window.setInterval(sendReady, 1500);
+
+    return () => {
+      window.clearInterval(interval);
+    };
+  }, [currentPlayerId, isClientLoaded, scheduledStartAt, markPlayerSynced]);
+
+  useEffect(() => {
+    if (!isHost || !isClientLoaded || scheduledStartAt || syncStartedRef.current || !allPlayersSynced) return;
+
+    const startsAt = new Date(Date.now() + 4000).toISOString();
+    syncStartedRef.current = true;
+    setScheduledStartAt(startsAt);
+    syncChannelRef.current?.send({
+      type: 'broadcast',
+      event: 'match-start',
+      payload: { startsAt },
+    });
+  }, [allPlayersSynced, isClientLoaded, isHost, scheduledStartAt]);
+
+  useEffect(() => {
+    if (!scheduledStartAt) return;
+
+    setSyncNow(Date.now());
+    const interval = window.setInterval(() => {
+      setSyncNow(Date.now());
+    }, 250);
+
+    return () => {
+      window.clearInterval(interval);
+    };
+  }, [scheduledStartAt]);
+
+  useEffect(() => {
+    if (!isHost || !scheduledStartAt || hasMatchStarted) return;
+
+    const rebroadcast = window.setInterval(() => {
+      syncChannelRef.current?.send({
+        type: 'broadcast',
+        event: 'match-start',
+        payload: { startsAt: scheduledStartAt },
+      });
+    }, 1000);
+
+    return () => {
+      window.clearInterval(rebroadcast);
+    };
+  }, [hasMatchStarted, isHost, scheduledStartAt]);
+
   // Reset state for each new round
   useEffect(() => {
-    if (!currentRound) return;
+    if (!currentRound || !hasMatchStarted) return;
 
     setSelectedAnswer(null);
     setAnswerResult(null);
@@ -118,11 +228,11 @@ export default function GamePlay({ room, players, currentPlayerId, roomCode, tra
     setTimeRemaining(room.settings.time_per_round);
     roundStartTimeRef.current = Date.now();
     setOptions(getOptions());
-  }, [currentRound, room.settings.time_per_round, getOptions]);
+  }, [currentRound, room.settings.time_per_round, getOptions, hasMatchStarted]);
 
   // Countdown timer
   useEffect(() => {
-    if (showingResults || !currentRound) return;
+    if (!hasMatchStarted || showingResults || !currentRound) return;
 
     timerRef.current = window.setInterval(() => {
       setTimeRemaining((prev) => {
@@ -143,7 +253,7 @@ export default function GamePlay({ room, players, currentPlayerId, roomCode, tra
     return () => {
       if (timerRef.current) clearInterval(timerRef.current);
     };
-  }, [currentRound?.id, showingResults]);
+  }, [currentRound?.id, showingResults, hasMatchStarted]);
 
   const submitAnswer = async (trackId: string) => {
     if (selectedAnswer || isSubmitting || !currentRound) return;
@@ -219,6 +329,92 @@ export default function GamePlay({ room, players, currentPlayerId, roomCode, tra
   };
 
   // Loading state
+  if (!hasMatchStarted) {
+    return (
+      <main className="mx-auto flex min-h-screen w-full max-w-4xl flex-col justify-center gap-6 px-4 py-5 text-white sm:px-6">
+        <Card className="border border-white/10 bg-white/[0.04] shadow-[0_20px_80px_rgba(0,0,0,0.38)]">
+          <Card.Content className="space-y-8 p-8 sm:p-10">
+            <div className="space-y-3 text-center">
+              <Chip variant="soft" className="mx-auto border border-amber-400/20 bg-amber-400/10 text-amber-300">
+                Match sync
+              </Chip>
+              <div className="text-3xl font-semibold tracking-[-0.05em] text-white sm:text-4xl">
+                {scheduledStartAt ? 'Everyone is in. Starting together...' : 'Waiting for all players to load'}
+              </div>
+              <p className="mx-auto max-w-xl text-sm leading-6 text-white/55 sm:text-base">
+                {scheduledStartAt
+                  ? 'The match is locked and about to begin. Stay on this screen while everyone is synchronized.'
+                  : 'We are preparing the first round and making sure every player has loaded the match before it starts.'}
+              </p>
+            </div>
+
+            <div className="grid gap-3 sm:grid-cols-2">
+              {players.map((player) => {
+                const isSynced = syncedPlayerIds.includes(player.id);
+                const isMe = player.id === currentPlayerId;
+
+                return (
+                  <div
+                    key={player.id}
+                    className={`flex items-center justify-between rounded-2xl border px-4 py-4 ${
+                      isSynced
+                        ? 'border-emerald-400/25 bg-emerald-400/10'
+                        : 'border-white/10 bg-black/20'
+                    }`}
+                  >
+                    <div className="min-w-0">
+                      <div className="flex items-center gap-2">
+                        <span className="truncate font-medium text-white">
+                          {isMe ? 'You' : (player.display_name || 'Player')}
+                        </span>
+                        {isMe && (
+                          <Chip variant="soft" className="border border-white/10 bg-white/5 text-white/65">
+                            This device
+                          </Chip>
+                        )}
+                      </div>
+                      <div className="mt-1 text-sm text-white/45">
+                        {isSynced ? 'Loaded and ready' : 'Still loading match'}
+                      </div>
+                    </div>
+                    <Chip
+                      variant="soft"
+                      className={isSynced
+                        ? 'border border-emerald-400/20 bg-emerald-400/10 text-emerald-300'
+                        : 'border border-white/10 bg-white/5 text-white/55'}
+                    >
+                      {isSynced ? 'Ready' : 'Waiting'}
+                    </Chip>
+                  </div>
+                );
+              })}
+            </div>
+
+            <div className="rounded-3xl border border-white/10 bg-black/25 p-6 text-center">
+              {scheduledStartAt ? (
+                <>
+                  <div className="text-[0.65rem] uppercase tracking-[0.45em] text-white/45">Starts in</div>
+                  <div className="mt-3 font-mono text-6xl font-bold tracking-[-0.08em] text-white">
+                    {syncCountdown ?? 0}
+                  </div>
+                </>
+              ) : (
+                <>
+                  <div className="mx-auto h-10 w-10 animate-spin rounded-full border-4 border-white/20 border-t-white" />
+                  <div className="mt-4 text-sm text-white/55">
+                    {isClientLoaded
+                      ? `${syncedPlayerIds.length}/${players.length} players ready`
+                      : 'Loading rounds and tracks...'}
+                  </div>
+                </>
+              )}
+            </div>
+          </Card.Content>
+        </Card>
+      </main>
+    );
+  }
+
   if (rounds.length === 0 || !currentRound || !correctTrack) {
     return (
       <main className="mx-auto flex min-h-screen w-full max-w-4xl items-center justify-center px-4 py-5 text-white">

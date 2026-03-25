@@ -32,7 +32,7 @@ export default function RoomClient({ roomCode }: RoomClientProps) {
   }, [roomCode]);
 
   // Fetch room and tracks for game/leaderboard phases
-  const fetchRoomData = useCallback(async () => {
+  const fetchRoomData = useCallback(async (forceTrackFetch = false) => {
     const res = await fetch(`/api/rooms/${roomCode}`);
     const json = await res.json();
     if (json.success) {
@@ -46,8 +46,9 @@ export default function RoomClient({ roomCode }: RoomClientProps) {
       }
     }
 
-    // Fetch tracks for when in game or leaderboard phase
-    if (json.data?.room?.id && (phase === 'playing' || phase === 'finished')) {
+    // Fetch tracks for when in game or leaderboard phase, or when forced (e.g. non-host transitioning to active)
+    const shouldFetchTracks = forceTrackFetch || phase === 'playing' || phase === 'finished';
+    if (json.data?.room?.id && shouldFetchTracks) {
       const { data: rounds } = await supabase
         .from('game_rounds')
         .select('track_id')
@@ -90,7 +91,7 @@ export default function RoomClient({ roomCode }: RoomClientProps) {
               setPhase('selecting');
             }
             if (newRoom.status === 'active' && (phase === 'selecting' || phase === 'lobby')) {
-              fetchRoomData().then(() => setPhase('playing'));
+              fetchRoomData(true).then(() => setPhase('playing'));
             }
             if (newRoom.status === 'finished' && phase !== 'finished') {
               setPhase('finished');
