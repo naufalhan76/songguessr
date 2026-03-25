@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState, useCallback, useRef } from 'react';
-import { Track, Room, Player } from '@songguessr/shared';
+import { Track, Room, Player } from '@muze/shared';
 import { isAudioPlaybackPrimed } from '@/lib/audio';
 import { clearRoomPlayerId, supabase } from '@/lib/supabase';
 import AudioPlayer from '@/components/AudioPlayer';
@@ -941,3 +941,4 @@ export default function GamePlay({
     </main>
   );
 }
+

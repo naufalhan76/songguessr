@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState, useCallback, useRef } from 'react';
-import { Track, Room, Player } from '@songguessr/shared';
+import { Track, Room, Player } from '@muze/shared';
 import { clearRoomPlayerId, supabase } from '@/lib/supabase';
 import { AnimatePresence, motion } from 'framer-motion';
 import { Card, Chip, Button } from '@heroui/react';
@@ -711,3 +711,4 @@ export default function SongSelection({
     </main>
   );
 }
+

@@ -86,7 +86,7 @@ export default function LandingPage() {
   return (
     <main className="mx-auto flex min-h-screen w-full max-w-7xl flex-col px-4 py-5 sm:px-6 lg:px-8">
       <header className="flex items-center justify-center border-b border-white/10 pb-5">
-        <div className="text-xl font-bold uppercase tracking-[0.4em] text-white">Songguessr</div>
+        <div className="text-xl font-bold tracking-[0.32em] text-white">muze.games</div>
       </header>
 
       <section className="grid flex-1 gap-8 py-10 lg:grid-cols-[1.05fr_0.95fr] lg:items-center">
@@ -231,3 +231,4 @@ export default function LandingPage() {
     </main>
   );
 }
+

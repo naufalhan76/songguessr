@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState, useCallback } from 'react';
-import { Player, Room, Track } from '@songguessr/shared';
+import { Player, Room, Track } from '@muze/shared';
 import { clearRoomPlayerId, supabase } from '@/lib/supabase';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Button, Card, Chip } from '@heroui/react';
@@ -104,7 +104,7 @@ async function createLeaderboardImageBlob({
 
   ctx.fillStyle = 'rgba(255,255,255,0.72)';
   ctx.font = '600 24px Arial';
-  ctx.fillText('SONGGUESSR FINAL STANDINGS', 84, 92);
+  ctx.fillText('MUZE FINAL STANDINGS', 84, 92);
 
   ctx.fillStyle = '#ffffff';
   const titleSize = fitText(ctx, roomLabel, 760, 62);
@@ -372,11 +372,11 @@ export default function Leaderboard({ room, players, currentUserId, roomCode, tr
         mostPlayedArtist,
       });
 
-      const file = new File([blob], `songguessr-${roomCode}-leaderboard.png`, { type: 'image/png' });
+      const file = new File([blob], `muze-games-${roomCode}-leaderboard.png`, { type: 'image/png' });
 
       if (navigator.share && navigator.canShare?.({ files: [file] })) {
         await navigator.share({
-          title: 'Songguessr leaderboard',
+          title: 'muze.games leaderboard',
           text: `Final standings for ${room.room_name?.trim() || `Room ${roomCode}`}`,
           files: [file],
         });
@@ -618,3 +618,4 @@ export default function Leaderboard({ room, players, currentUserId, roomCode, tr
     </main>
   );
 }
+

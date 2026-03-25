@@ -2,7 +2,7 @@
 
 import { useEffect, useState, useCallback, useRef } from 'react';
 import { supabase, getGuestSession, getRoomPlayerId, setRoomPlayerId } from '@/lib/supabase';
-import { Room, Player } from '@songguessr/shared';
+import { Room, Player } from '@muze/shared';
 
 interface UseRoomReturn {
   room: Room | null;
@@ -254,3 +254,4 @@ export function useRoom(roomCode: string): UseRoomReturn {
     refetch: fetchRoom,
   };
 }
+

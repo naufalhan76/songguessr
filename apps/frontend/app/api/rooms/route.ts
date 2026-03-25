@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createServiceClient } from '@/lib/supabase-server';
-import { generateRoomCode } from '@songguessr/shared';
+import { generateRoomCode } from '@muze/shared';
 
 // POST /api/rooms — create a new room (guest-friendly, no auth needed)
 export async function POST(request: NextRequest) {
@@ -86,3 +86,4 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ success: false, error: 'Internal server error' }, { status: 500 });
   }
 }
+

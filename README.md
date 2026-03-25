@@ -1,6 +1,6 @@
-# Songguessr
+# muze.games
 
-Songguessr is a real-time multiplayer music guessing game built with Next.js and Supabase.
+muze.games is a real-time multiplayer music guessing game built with Next.js and Supabase.
 Players join a room, mark ready, manually pick songs for the match, then guess tracks from short YouTube-based previews.
 
 ## What Exists Today
@@ -29,7 +29,7 @@ Players join a room, mark ready, manually pick songs for the match, then guess t
 ## Project Structure
 
 ```text
-Songguessr/
+muze/
 |- apps/
 |  |- frontend/                     # Next.js app
 |  |  |- app/                       # App Router routes and API handlers
@@ -166,3 +166,4 @@ Important notes:
 ## License
 
 MIT
+

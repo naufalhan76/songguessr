@@ -16,15 +16,15 @@ const ibmPlexMono = IBM_Plex_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Songguessr",
+  title: "muze.games",
   description: "A monochrome multiplayer music guessing game built for fast, social play.",
   keywords: ["music", "game", "spotify", "multiplayer", "guess", "songs"],
-  authors: [{ name: "Songguessr Team" }],
+  authors: [{ name: "muze.games Team" }],
   openGraph: {
     type: "website",
-    title: "Songguessr",
+    title: "muze.games",
     description: "Guess songs from your friends' Spotify playlists in real-time",
-    siteName: "Songguessr",
+    siteName: "muze.games",
   },
 };
 
@@ -69,3 +69,4 @@ export default function RootLayout({
     </html>
   );
 }
+

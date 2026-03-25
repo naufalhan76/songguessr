@@ -10,7 +10,7 @@
   "dependencies": {
     "@distube/ytpl": "^1.2.4",
     "@heroui/react": "^3.0.1",
-    "@songguessr/shared": "file:../../packages/shared",
+    "@muze/shared": "file:../../packages/shared",
     "@supabase/supabase-js": "^2.45.1",
     "canvas-confetti": "^1.9.4",
     "framer-motion": "^11.18.0",
@@ -30,3 +30,4 @@
     "typescript": "^5"
   }
 }
+

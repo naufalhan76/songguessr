@@ -1,4 +1,4 @@
-// Shared TypeScript types for Songguessr
+// Shared TypeScript types for muze
 
 // Database types (matching Supabase tables)
 export interface User {

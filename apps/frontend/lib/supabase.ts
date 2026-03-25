@@ -1,5 +1,5 @@
 import { createClient } from '@supabase/supabase-js';
-import { GuestSession } from '@songguessr/shared';
+import { GuestSession } from '@muze/shared';
 
 // Supabase client — used for realtime subscriptions only (no auth)
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || 'https://example.com';
@@ -13,7 +13,7 @@ export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
 });
 
 // Guest session management (localStorage-based)
-const GUEST_SESSION_KEY = 'songguessr_guest_session';
+const GUEST_SESSION_KEY = 'muze_guest_session';
 
 /**
  * Get the current guest session, or null if none exists.
@@ -76,7 +76,7 @@ export function clearGuestSession(): void {
  */
 export function setRoomPlayerId(roomCode: string, playerId: string): void {
   if (typeof window !== 'undefined') {
-    localStorage.setItem(`songguessr_player_${roomCode}`, playerId);
+    localStorage.setItem(`muze_player_${roomCode}`, playerId);
   }
 }
 
@@ -85,7 +85,7 @@ export function setRoomPlayerId(roomCode: string, playerId: string): void {
  */
 export function getRoomPlayerId(roomCode: string): string | null {
   if (typeof window === 'undefined') return null;
-  return localStorage.getItem(`songguessr_player_${roomCode}`);
+  return localStorage.getItem(`muze_player_${roomCode}`);
 }
 
 /**
@@ -93,6 +93,6 @@ export function getRoomPlayerId(roomCode: string): string | null {
  */
 export function clearRoomPlayerId(roomCode: string): void {
   if (typeof window !== 'undefined') {
-    localStorage.removeItem(`songguessr_player_${roomCode}`);
+    localStorage.removeItem(`muze_player_${roomCode}`);
   }
 }

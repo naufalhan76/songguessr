@@ -199,8 +199,8 @@ export default function RoomLobby({ roomCode, onSelectionStarted, onPlayerIdSet 
     if (navigator.share) {
       try {
         await navigator.share({
-          title: 'Songguessr',
-          text: `Join my Songguessr room: ${roomDisplayName || roomCode}`,
+          title: 'muze.games',
+          text: `Join my muze.games room: ${roomDisplayName || roomCode}`,
           url: joinUrl,
         });
         return;
@@ -859,3 +859,4 @@ export default function RoomLobby({ roomCode, onSelectionStarted, onPlayerIdSet 
     </main>
   );
 }
+

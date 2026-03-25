@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useCallback, useEffect } from 'react';
-import { Track, Room, Player } from '@songguessr/shared';
+import { Track, Room, Player } from '@muze/shared';
 import { clearRoomPlayerId, getRoomPlayerId, supabase } from '@/lib/supabase';
 import RoomLobby from '@/components/RoomLobby';
 import SongSelection from '@/components/SongSelection';
@@ -226,3 +226,4 @@ export default function RoomClient({ roomCode }: RoomClientProps) {
     </main>
   );
 }
+

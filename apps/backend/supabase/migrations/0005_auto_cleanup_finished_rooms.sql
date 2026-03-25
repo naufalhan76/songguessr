@@ -24,7 +24,7 @@ BEGIN
   SELECT jobid
   INTO existing_job_id
   FROM cron.job
-  WHERE jobname = 'songguessr-cleanup-finished-rooms'
+  WHERE jobname = 'muze-cleanup-finished-rooms'
   LIMIT 1;
 
   IF existing_job_id IS NOT NULL THEN
@@ -33,16 +33,17 @@ BEGIN
 
   BEGIN
     PERFORM cron.schedule(
-      'songguessr-cleanup-finished-rooms',
+      'muze-cleanup-finished-rooms',
       '30 seconds',
       $job$SELECT public.cleanup_expired_finished_rooms();$job$
     );
   EXCEPTION
     WHEN OTHERS THEN
       PERFORM cron.schedule(
-        'songguessr-cleanup-finished-rooms',
+        'muze-cleanup-finished-rooms',
         '* * * * *',
         $job$SELECT public.cleanup_expired_finished_rooms();$job$
       );
   END;
 END $$;
+

@@ -1,4 +1,4 @@
-const AUDIO_PRIMED_KEY = 'songguessr_audio_primed';
+const AUDIO_PRIMED_KEY = 'muze_audio_primed';
 
 const SILENT_WAV_DATA_URI =
   'data:audio/wav;base64,UklGRlQAAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YTAAAAAA';
@@ -67,3 +67,4 @@ export async function primeAudioPlayback(): Promise<boolean> {
 
   return primed;
 }
+

@@ -1,4 +1,4 @@
-# Songguessr - Architecture & Data Models
+# muze.games - Architecture & Data Models
 
 ## Tech Stack
 
@@ -10,7 +10,7 @@
 ## Project Structure (Monorepo)
 
 ```
-songguessr/
+muze/
 ├── apps/
 │   ├── frontend/          # Next.js app
 │   └── backend/           # Supabase Edge Functions & migrations

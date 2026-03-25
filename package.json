@@ -1,5 +1,5 @@
 {
-  "name": "songguessr",
+  "name": "muze",
   "version": "0.1.0",
   "private": true,
   "workspaces": [
@@ -10,7 +10,7 @@
     "dev": "concurrently \"npm run dev:frontend\" \"npm run dev:backend\"",
     "dev:frontend": "npm run dev --workspace=frontend",
     "dev:backend": "npm run dev --workspace=backend",
-    "build": "npm run build --workspace=@songguessr/shared && npm run build --workspace=frontend",
+    "build": "npm run build --workspace=@muze/shared && npm run build --workspace=frontend",
     "lint": "npm run lint --workspaces",
     "format": "prettier --write ."
   },
