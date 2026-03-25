@@ -59,9 +59,31 @@ export default function AudioPlayer({
   const scheduleAutoplayCheck = useCallback(() => {
     clearAutoplayCheck();
     autoplayCheckRef.current = window.setTimeout(() => {
-      setAutoplayBlocked((prev) => (isPlaying ? false : prev || autoPlay));
+      let actuallyPlaying = false;
+
+      if (isYoutubeMode && ytPlayerRef.current) {
+        try {
+          actuallyPlaying = ytPlayerRef.current.getPlayerState() === 1;
+        } catch {
+          actuallyPlaying = false;
+        }
+      } else if (!isYoutubeMode && audioRef.current) {
+        actuallyPlaying = !audioRef.current.paused;
+      }
+
+      setAutoplayBlocked(autoPlay && !actuallyPlaying);
     }, 1400);
-  }, [autoPlay, clearAutoplayCheck, isPlaying]);
+  }, [autoPlay, clearAutoplayCheck, isYoutubeMode]);
+
+  useEffect(() => {
+    clearAutoplayCheck();
+    setAutoplayBlocked(false);
+    setIsPlaying(false);
+    setProgress(0);
+    setCurrentTime(0);
+    setIsYoutubeReady(false);
+    hasSeekedRef.current = false;
+  }, [clearAutoplayCheck, src, youtubeId]);
 
   useEffect(() => {
     return () => {
@@ -181,7 +203,13 @@ export default function AudioPlayer({
 
     if (isYoutubeMode && ytPlayerRef.current) {
       try {
+        const currentTime = ytPlayerRef.current.getCurrentTime?.() || 0;
+        const playbackEnded = currentTime >= previewStartRef.current + maxDuration - 0.25;
+        if (playbackEnded || currentTime < previewStartRef.current) {
+          ytPlayerRef.current.seekTo(previewStartRef.current, true);
+        }
         ytPlayerRef.current.playVideo();
+        scheduleAutoplayCheck();
       } catch {
         setAutoplayBlocked(true);
       }
@@ -189,11 +217,15 @@ export default function AudioPlayer({
     }
 
     if (!isYoutubeMode && audioRef.current) {
+      if (audioRef.current.currentTime >= maxDuration - 0.25) {
+        audioRef.current.currentTime = 0;
+      }
       audioRef.current.play().catch(() => {
         setAutoplayBlocked(true);
       });
+      scheduleAutoplayCheck();
     }
-  }, [isYoutubeMode]);
+  }, [isYoutubeMode, maxDuration, scheduleAutoplayCheck]);
 
   const togglePlay = () => {
     if (isYoutubeMode && ytPlayerRef.current) {
@@ -245,6 +277,7 @@ export default function AudioPlayer({
       if (autoPlay) {
         try {
           player.playVideo();
+          scheduleAutoplayCheck();
         } catch {
           setAutoplayBlocked(true);
         }

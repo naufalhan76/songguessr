@@ -24,6 +24,19 @@ interface RoundData {
   track_id: string;
 }
 
+interface AnswerResult {
+  correct: boolean;
+  points: number;
+  streakCount: number;
+  streakBonus: number;
+}
+
+const PREVIEW_START_RATIOS = [0.3, 0.45, 0.65, 0.75] as const;
+
+function pickPreviewStartRatio() {
+  return PREVIEW_START_RATIOS[Math.floor(Math.random() * PREVIEW_START_RATIOS.length)];
+}
+
 export default function GamePlay({
   room,
   players,
@@ -39,7 +52,7 @@ export default function GamePlay({
   const [isLeaving, setIsLeaving] = useState(false);
   const [isConfirmingLeave, setIsConfirmingLeave] = useState(false);
   const [selectedAnswer, setSelectedAnswer] = useState<string | null>(null);
-  const [answerResult, setAnswerResult] = useState<{ correct: boolean; points: number } | null>(null);
+  const [answerResult, setAnswerResult] = useState<AnswerResult | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [roundScores, setRoundScores] = useState<Record<string, number>>({});
   const [showingResults, setShowingResults] = useState(false);
@@ -49,6 +62,9 @@ export default function GamePlay({
   const [scheduledStartAt, setScheduledStartAt] = useState<string | null>(null);
   const [syncNow, setSyncNow] = useState(() => Date.now());
   const [audioPrimed] = useState(() => isAudioPlaybackPrimed());
+  const [currentStreak, setCurrentStreak] = useState(0);
+  const [intermissionCountdown, setIntermissionCountdown] = useState<number | null>(null);
+  const [previewStartRatio, setPreviewStartRatio] = useState(() => pickPreviewStartRatio());
 
   const timerRef = useRef<number | null>(null);
   const roundAdvanceTimeoutRef = useRef<number | null>(null);
@@ -75,6 +91,15 @@ export default function GamePlay({
 
   const currentRound = rounds[currentRoundIndex];
   const correctTrack = currentRound ? tracks.find((track) => track.id === currentRound.track_id) : null;
+  const questionsRemaining = currentRound ? Math.max(rounds.length - currentRound.round_number, 0) : rounds.length;
+  const displayedScores = players.map((player) => ({
+    id: player.id,
+    score: player.id === currentPlayerId && currentRound && roundScores[currentRound.id] !== undefined
+      ? roundScores[currentRound.id]
+      : player.score,
+  }));
+  const rankedScores = [...displayedScores].sort((a, b) => b.score - a.score);
+  const recentRank = rankedScores.findIndex((entry) => entry.id === currentPlayerId) + 1;
   const isClientLoaded = rounds.length > 0 && tracks.length > 0;
   const allPlayersSynced = players.length > 0 && players.every((player) => syncedPlayerIds.includes(player.id));
   const scheduledStartMs = scheduledStartAt ? new Date(scheduledStartAt).getTime() : null;
@@ -140,6 +165,38 @@ export default function GamePlay({
 
   const [options, setOptions] = useState<Track[]>([]);
 
+  const getIntermissionCopy = useCallback(() => {
+    if (!answerResult) {
+      return {
+        eyebrow: 'Round locked',
+        title: questionsRemaining > 0 ? 'Next song is loading...' : 'Final scoreboard is loading...',
+        body: 'Stay ready, we are syncing everyone before moving on.',
+      };
+    }
+
+    if (answerResult.correct) {
+      return {
+        eyebrow: answerResult.streakCount >= 2 ? `Hot streak x${answerResult.streakCount}` : 'Nice hit',
+        title: questionsRemaining > 0 ? 'Mantap, lanjut gas lagi.' : 'Strong finish.',
+        body: answerResult.streakBonus > 0
+          ? `Kamu dapet bonus streak +${answerResult.streakBonus}.`
+          : 'Jawaban kamu masuk dan score sudah di-update.',
+      };
+    }
+
+    return {
+      eyebrow: 'Round complete',
+      title: questionsRemaining > 0 ? 'Ambil napas, round berikutnya bentar lagi.' : 'Round terakhir selesai.',
+      body: `Jawaban yang benar: "${correctTrack?.title}" by ${correctTrack?.artists.join(', ')}`,
+    };
+  }, [answerResult, correctTrack?.artists, correctTrack?.title, questionsRemaining]);
+
+  const getRankLabel = useCallback(() => {
+    if (recentRank <= 0) return '-';
+    const suffix = recentRank === 1 ? 'st' : recentRank === 2 ? 'nd' : recentRank === 3 ? 'rd' : 'th';
+    return `${recentRank}${suffix} / ${players.length}`;
+  }, [players.length, recentRank]);
+
   const advanceRound = useCallback(() => {
     if (currentRoundIndex >= rounds.length - 1) {
       onGameEnd();
@@ -153,6 +210,7 @@ export default function GamePlay({
 
     setIsRoundComplete(true);
     setShowingResults(true);
+    setIntermissionCountdown(5);
     if (timerRef.current) {
       clearInterval(timerRef.current);
     }
@@ -161,7 +219,7 @@ export default function GamePlay({
     }
     roundAdvanceTimeoutRef.current = window.setTimeout(() => {
       advanceRound();
-    }, 3000);
+    }, 5000);
   }, [advanceRound, isRoundComplete]);
 
   useEffect(() => {
@@ -171,6 +229,19 @@ export default function GamePlay({
       }
     };
   }, []);
+
+  useEffect(() => {
+    if (!isRoundComplete || intermissionCountdown === null) return;
+    if (intermissionCountdown <= 1) return;
+
+    const timeout = window.setTimeout(() => {
+      setIntermissionCountdown((prev) => (prev === null ? null : prev - 1));
+    }, 1000);
+
+    return () => {
+      window.clearTimeout(timeout);
+    };
+  }, [intermissionCountdown, isRoundComplete]);
 
   useEffect(() => {
     if (!room?.id || !currentPlayerId) return;
@@ -306,7 +377,9 @@ export default function GamePlay({
     setShowingResults(false);
     setAnsweredPlayerIds([]);
     setIsRoundComplete(false);
+    setIntermissionCountdown(null);
     setTimeRemaining(room.settings.time_per_round);
+    setPreviewStartRatio(pickPreviewStartRatio());
     roundStartTimeRef.current = Date.now();
     setOptions(getOptions());
     if (roundAdvanceTimeoutRef.current) {
@@ -324,7 +397,8 @@ export default function GamePlay({
             clearInterval(timerRef.current);
           }
           if (!selectedAnswer) {
-            setAnswerResult({ correct: false, points: 0 });
+            setCurrentStreak(0);
+            setAnswerResult({ correct: false, points: 0, streakCount: 0, streakBonus: 0 });
           }
           finalizeRound();
           return 0;
@@ -370,19 +444,24 @@ export default function GamePlay({
       const json = await res.json();
       if (json.success) {
         markPlayerAnswered(currentPlayerId);
+        setCurrentStreak(json.data.streak_count ?? 0);
         setAnswerResult({
           correct: json.data.is_correct,
           points: json.data.points_awarded,
+          streakCount: json.data.streak_count ?? 0,
+          streakBonus: json.data.streak_bonus ?? 0,
         });
         setRoundScores((prev) => ({
           ...prev,
           [currentRound.id]: json.data.new_score,
         }));
       } else {
-        setAnswerResult({ correct: false, points: 0 });
+        setCurrentStreak(0);
+        setAnswerResult({ correct: false, points: 0, streakCount: 0, streakBonus: 0 });
       }
     } catch {
-      setAnswerResult({ correct: false, points: 0 });
+      setCurrentStreak(0);
+      setAnswerResult({ correct: false, points: 0, streakCount: 0, streakBonus: 0 });
     }
 
     setIsSubmitting(false);
@@ -539,9 +618,17 @@ export default function GamePlay({
           <Chip variant="soft" className="border border-white/10 bg-white/5 text-white/70">
             Round {currentRound.round_number}/{rounds.length}
           </Chip>
+          <Chip variant="soft" className="border border-white/10 bg-white/5 text-white/70">
+            {questionsRemaining} soal lagi
+          </Chip>
           <Chip variant="soft" className="border border-emerald-400/20 bg-emerald-400/10 text-emerald-300">
             Room {roomCode}
           </Chip>
+          {currentStreak >= 2 && (
+            <Chip variant="soft" className="border border-amber-400/20 bg-amber-400/10 text-amber-300">
+              Streak x{currentStreak}
+            </Chip>
+          )}
         </div>
         <div className="flex items-center gap-4">
           <div className={`font-mono text-3xl font-bold ${timerColor} transition-colors`}>
@@ -578,7 +665,7 @@ export default function GamePlay({
             autoPlay
             maxDuration={room.settings.time_per_round}
             durationMs={correctTrack.duration_ms}
-            startRatio={0.4}
+            startRatio={previewStartRatio}
           />
         </Card.Content>
       </Card>
@@ -640,7 +727,7 @@ export default function GamePlay({
       </div>
 
       <AnimatePresence>
-        {answerResult && showingResults && (
+        {answerResult && showingResults && !isRoundComplete && (
           <motion.div
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
@@ -661,6 +748,11 @@ export default function GamePlay({
                       ? `+${answerResult.points} points`
                       : `The answer was "${correctTrack.title}" by ${correctTrack.artists.join(', ')}`}
                   </div>
+                  {answerResult.correct && answerResult.streakBonus > 0 && (
+                    <div className="mt-1 text-xs uppercase tracking-[0.22em] text-amber-200/80">
+                      Streak bonus +{answerResult.streakBonus}
+                    </div>
+                  )}
                   {!isRoundComplete && (
                     <div className="mt-1 text-xs uppercase tracking-[0.22em] text-white/40">
                       Waiting for other players...
@@ -669,6 +761,69 @@ export default function GamePlay({
                 </div>
               </Card.Content>
             </Card>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      <AnimatePresence>
+        {isRoundComplete && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-[90] flex items-center justify-center bg-black/70 px-6 backdrop-blur-md"
+          >
+            <motion.div
+              initial={{ scale: 0.96, y: 10 }}
+              animate={{ scale: 1, y: 0 }}
+              exit={{ scale: 0.98, y: -8 }}
+              className="w-full max-w-xl rounded-[2rem] border border-white/10 bg-[#0b0d12]/95 p-8 text-center shadow-[0_30px_120px_rgba(0,0,0,0.55)]"
+            >
+              <div className="text-[0.65rem] uppercase tracking-[0.4em] text-white/40">
+                {getIntermissionCopy().eyebrow}
+              </div>
+              <h2 className="mt-3 text-3xl font-semibold tracking-[-0.05em] text-white sm:text-4xl">
+                {getIntermissionCopy().title}
+              </h2>
+              <p className="mt-3 text-sm leading-6 text-white/60 sm:text-base">
+                {getIntermissionCopy().body}
+              </p>
+
+              <div className="mt-6 grid gap-3 sm:grid-cols-3">
+                <div className="rounded-2xl border border-white/10 bg-white/[0.04] px-4 py-4">
+                  <div className="text-[0.65rem] uppercase tracking-[0.28em] text-white/35">Points</div>
+                  <div className="mt-2 text-2xl font-semibold text-white">
+                    {answerResult?.correct ? `+${answerResult.points}` : '+0'}
+                  </div>
+                </div>
+                <div className="rounded-2xl border border-white/10 bg-white/[0.04] px-4 py-4">
+                  <div className="text-[0.65rem] uppercase tracking-[0.28em] text-white/35">Streak</div>
+                  <div className="mt-2 text-2xl font-semibold text-white">
+                    x{answerResult?.streakCount ?? currentStreak}
+                  </div>
+                </div>
+                <div className="rounded-2xl border border-white/10 bg-white/[0.04] px-4 py-4">
+                  <div className="text-[0.65rem] uppercase tracking-[0.28em] text-white/35">Recent rank</div>
+                  <div className="mt-2 text-2xl font-semibold text-white">
+                    {getRankLabel()}
+                  </div>
+                </div>
+              </div>
+
+              <div className="mt-6 rounded-3xl border border-white/10 bg-black/25 px-6 py-5">
+                <div className="text-[0.65rem] uppercase tracking-[0.38em] text-white/40">
+                  {questionsRemaining > 0 ? 'Next round in' : 'Winner screen in'}
+                </div>
+                <div className="mt-2 font-mono text-5xl font-bold tracking-[-0.08em] text-white">
+                  {intermissionCountdown ?? 0}
+                </div>
+                <div className="mt-3 text-sm text-white/50">
+                  {questionsRemaining > 0
+                    ? `${questionsRemaining} soal lagi setelah ini.`
+                    : 'Abis ini langsung ke winner screen.'}
+                </div>
+              </div>
+            </motion.div>
           </motion.div>
         )}
       </AnimatePresence>

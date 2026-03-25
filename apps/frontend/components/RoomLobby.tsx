@@ -165,7 +165,11 @@ export default function RoomLobby({ roomCode, onSelectionStarted, onPlayerIdSet 
     setIsReady(nextReady);
 
     const primePromise = nextReady ? primeAudioPlayback() : Promise.resolve(false);
-    await toggleReady(nextReady);
+    const ok = await toggleReady(nextReady);
+    if (!ok) {
+      setIsReady(!nextReady);
+      return;
+    }
 
     const primed = await primePromise;
     if (primed) {
@@ -485,7 +489,7 @@ export default function RoomLobby({ roomCode, onSelectionStarted, onPlayerIdSet 
               <div>
                 <h2 className="text-xl font-semibold tracking-[-0.04em] text-white">Game settings</h2>
                 <p className="mt-1 text-sm text-white/50">
-                  {isHost ? 'Click edit to customize game settings.' : 'Set by the room host.'}
+                  {isHost ? 'Click edit to customize game settings.' : 'Wait for host set the room.'}
                 </p>
               </div>
               {isHost && !isEditingSettings && (
@@ -508,7 +512,7 @@ export default function RoomLobby({ roomCode, onSelectionStarted, onPlayerIdSet 
                     <div className="space-y-2 rounded-2xl border border-white/10 bg-black/20 p-4">
                       <label className="text-[0.65rem] uppercase tracking-[0.28em] text-white/40">Time per round</label>
                       <select value={editTime} onChange={(e) => setEditTime(Number(e.target.value))} className="w-full rounded-xl border border-white/10 bg-black/40 px-3 py-2.5 text-sm font-medium text-white outline-none transition focus:border-white/25">
-                        {[10, 15, 20, 25, 30, 45, 60].map((v) => <option key={v} value={v}>{v} seconds</option>)}
+                        {[10, 15, 20, 25, 30, 45, 60, 120].map((v) => <option key={v} value={v}>{v} seconds</option>)}
                       </select>
                     </div>
                     <div className="space-y-2 rounded-2xl border border-white/10 bg-black/20 p-4">

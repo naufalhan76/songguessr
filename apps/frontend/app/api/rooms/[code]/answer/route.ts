@@ -5,6 +5,43 @@ interface RouteContext {
   params: Promise<{ code: string }>;
 }
 
+async function getCurrentStreak(
+  supabase: ReturnType<typeof createServiceClient>,
+  roomId: string,
+  playerId: string,
+  currentRoundNumber: number
+) {
+  const { data: previousRounds } = await supabase
+    .from('game_rounds')
+    .select('id, round_number')
+    .eq('room_id', roomId)
+    .lt('round_number', currentRoundNumber)
+    .order('round_number', { ascending: false });
+
+  if (!previousRounds || previousRounds.length === 0) {
+    return 0;
+  }
+
+  const { data: previousAnswers } = await supabase
+    .from('player_answers')
+    .select('round_id, is_correct')
+    .eq('player_id', playerId)
+    .in('round_id', previousRounds.map((round) => round.id));
+
+  const answerMap = new Map((previousAnswers ?? []).map((answer) => [answer.round_id, answer.is_correct]));
+  let streak = 0;
+
+  for (const round of previousRounds) {
+    if (answerMap.get(round.id) === true) {
+      streak += 1;
+    } else {
+      break;
+    }
+  }
+
+  return streak;
+}
+
 // POST /api/rooms/[code]/answer — submit an answer
 export async function POST(request: NextRequest, context: RouteContext) {
   try {
@@ -52,14 +89,18 @@ export async function POST(request: NextRequest, context: RouteContext) {
     const timePerRoundMs = ((room.settings as { time_per_round?: number })?.time_per_round ?? 30) * 1000;
     const pointSystem = (room.settings as { point_system?: string })?.point_system ?? 'speed';
 
+    const currentStreak = await getCurrentStreak(supabase, room.id, player.id, round.round_number);
+    const nextStreak = isCorrect ? currentStreak + 1 : 0;
+    const streakBonus = isCorrect ? Math.max(0, nextStreak - 1) * 25 : 0;
+
     let pointsAwarded = 0;
     if (isCorrect) {
       if (pointSystem === 'speed') {
         const basePoints = 100;
         const timeFraction = Math.max(0, (timePerRoundMs - timeTakenMs) / timePerRoundMs);
-        pointsAwarded = Math.round(basePoints * (1 + timeFraction));
+        pointsAwarded = Math.round(basePoints * (1 + timeFraction)) + streakBonus;
       } else {
-        pointsAwarded = 100;
+        pointsAwarded = 100 + streakBonus;
       }
     }
 
@@ -95,6 +136,8 @@ export async function POST(request: NextRequest, context: RouteContext) {
       data: {
         ...answer,
         new_score: player.score + pointsAwarded,
+        streak_count: nextStreak,
+        streak_bonus: streakBonus,
       },
     });
   } catch (err) {

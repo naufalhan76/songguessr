@@ -13,7 +13,7 @@ interface UseRoomReturn {
   loading: boolean;
   error: string | null;
   joinRoom: (displayName: string) => Promise<Player | null>;
-  toggleReady: (ready: boolean) => Promise<void>;
+  toggleReady: (ready: boolean) => Promise<boolean>;
   startSelection: () => Promise<boolean>;
   startGame: () => Promise<{ tracks: unknown[] } | null>;
   updateSettings: (settings: Record<string, unknown>) => Promise<boolean>;
@@ -87,7 +87,14 @@ export function useRoom(roomCode: string): UseRoomReturn {
       .on(
         'postgres_changes',
         { event: '*', schema: 'public', table: 'players', filter: `room_id=eq.${room.id}` },
-        () => {
+        (payload) => {
+          if (payload.eventType === 'UPDATE' && payload.new) {
+            setPlayers((prev) => prev.map((player) => (
+              player.id === payload.new.id ? (payload.new as unknown as Player) : player
+            )));
+            return;
+          }
+
           fetchRoom();
         }
       )
@@ -139,15 +146,38 @@ export function useRoom(roomCode: string): UseRoomReturn {
 
   const toggleReady = useCallback(
     async (ready: boolean) => {
-      if (!currentPlayerId) return;
+      if (!currentPlayerId) return false;
 
-      await fetch(`/api/rooms/${roomCode}/ready`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ player_id: currentPlayerId, is_ready: ready }),
-      });
+      const previousPlayers = players;
+      setPlayers((prev) => prev.map((player) => (
+        player.id === currentPlayerId
+          ? { ...player, is_ready: ready }
+          : player
+      )));
+
+      try {
+        const res = await fetch(`/api/rooms/${roomCode}/ready`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ player_id: currentPlayerId, is_ready: ready }),
+        });
+
+        const json = await res.json();
+        if (!json.success) {
+          setPlayers(previousPlayers);
+          setError(json.error ?? 'Failed to update readiness');
+          return false;
+        }
+
+        return true;
+      } catch (error) {
+        console.error('Failed to update ready state', error);
+        setPlayers(previousPlayers);
+        setError('Failed to update readiness');
+        return false;
+      }
     },
-    [currentPlayerId, roomCode]
+    [currentPlayerId, players, roomCode]
   );
 
   const startSelection = useCallback(async (): Promise<boolean> => {
